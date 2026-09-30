@@ -1,0 +1,2167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Augmented Chess</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --felt:#1f3d35; --felt-deep:#132822; --felt-lift:#2a4b41; --felt-line:#3c6356;
+  --bone:#efe6d2; --bone-dim:#b9b09a; --brass:#d3a64d; --brass-deep:#9a7330;
+  --maple:#e9d6ae; --walnut:#9e6a44; --frame:#3b2819; --danger:#e0685a; --ice:#a6dcf2;
+  --ink:#1c1712;
+  --font-display:"Alegreya SC","Palatino Linotype",Palatino,Georgia,serif;
+  --font-body:"Alegreya Sans","Gill Sans","Segoe UI",system-ui,sans-serif;
+  --font-piece:"Segoe UI Symbol","Noto Sans Symbols 2","Noto Sans Symbols","DejaVu Sans","Apple Symbols",serif;
+  --sq:64px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;min-height:100%}
+body{
+  font-family:var(--font-body); font-size:17px; line-height:1.45; color:var(--bone);
+  background:
+    radial-gradient(ellipse 90% 60% at 50% -10%, #2d5448 0%, transparent 70%),
+    radial-gradient(ellipse 70% 80% at 50% 120%, #0f211c 0%, transparent 70%),
+    var(--felt);
+  background-attachment:fixed;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+h1,h2,h3{font-family:var(--font-display);font-weight:700;margin:0;letter-spacing:.01em}
+
+/* ---------- Top bar ---------- */
+.top{display:flex;align-items:center;gap:16px;padding:10px 20px;border-bottom:1px solid var(--felt-line);background:rgba(10,24,20,.35)}
+.brand{font-family:var(--font-display);font-size:1.3rem;font-weight:700;display:flex;align-items:center;gap:10px}
+.brand .mark{font-family:var(--font-piece);font-size:1.5rem;color:var(--brass);line-height:1}
+.netstatus{margin-left:auto;font-size:.92rem;color:var(--bone-dim);display:flex;align-items:center;gap:8px}
+.netstatus .dot{width:9px;height:9px;border-radius:50%;background:#6c7a73}
+.netstatus.ok .dot{background:#7ed19a;box-shadow:0 0 0 3px rgba(126,209,154,.18)}
+.netstatus.bad .dot{background:var(--danger)}
+
+.sound{display:flex;align-items:center;gap:8px}
+.iconbtn{background:none;border:1px solid var(--felt-line);border-radius:8px;width:36px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--bone);padding:0}
+.iconbtn:hover{border-color:var(--brass)}
+.iconbtn[aria-pressed=true]{color:var(--bone-dim)}
+.sound input[type=range]{width:90px;accent-color:var(--brass);padding:0;background:none;border:0}
+@media (max-width:600px){.sound input[type=range]{display:none}}
+
+/* ---------- Buttons & fields ---------- */
+.btn{appearance:none;border:1px solid var(--felt-line);background:var(--felt-lift);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500;transition:background .15s,border-color .15s}
+.btn:hover:not(:disabled){border-color:var(--brass);background:#31564a}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--brass);border-color:var(--brass);color:var(--ink);font-weight:700}
+.btn.primary:hover:not(:disabled){background:#e2b75d}
+.btn.ghost{background:transparent}
+.btn.danger{border-color:#7a3b33}
+.btn.small{padding:4px 10px;font-size:.9rem}
+.btn.link{background:none;border:none;color:var(--brass);padding:4px 6px;text-decoration:underline;text-underline-offset:3px}
+textarea,input[type=text],select{background:var(--felt-deep);border:1px solid var(--felt-line);border-radius:8px;padding:8px 10px;width:100%}
+textarea{min-height:88px;resize:vertical;font-size:.78rem;line-height:1.3;word-break:break-all;font-family:var(--font-body)}
+label{display:block}
+.field{font-weight:500;color:var(--bone-dim);font-size:.95rem}
+.field input,.field select{margin-top:4px;color:var(--bone)}
+
+/* ---------- Foil cards (the one loud thing) ---------- */
+.foil{
+  --face:linear-gradient(135deg,#f5f7f9 0%,#c3cbd3 38%,#eef1f4 52%,#98a3ae 100%);
+  --rim:#7c8793; --ink-c:#1d2429;
+  position:relative;border-radius:16px;padding:14px 16px 16px;color:var(--ink-c);background:var(--face);
+  border:1px solid var(--rim);box-shadow:0 1px 0 rgba(255,255,255,.5) inset,0 12px 28px rgba(0,0,0,.35);
+  display:flex;flex-direction:column;gap:6px;overflow:hidden;isolation:isolate;
+}
+.foil::after{content:"";position:absolute;inset:6px;border-radius:11px;border:1px solid rgba(255,255,255,.55);pointer-events:none;z-index:-1}
+.foil.tier-gold{--face:linear-gradient(135deg,#fff1c4 0%,#dcac43 40%,#f8e19a 54%,#a8761f 100%);--rim:#8d6419;--ink-c:#2a1b05}
+.foil.tier-prismatic{
+  --face:linear-gradient(115deg,#ffd9ea 0%,#d8e2ff 22%,#cff7ea 44%,#fff1c2 66%,#ecd6ff 88%,#ffd9ea 100%);
+  --rim:#8f7bb5;--ink-c:#21182f;background:var(--face);background-size:220% 220%;
+}
+.foil.tier-prismatic::before{
+  content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.65) 45%,transparent 60%);background-size:250% 100%;
+  animation:sheen 6s ease-in-out infinite;
+}
+@keyframes sheen{0%{background-position:150% 0}55%,100%{background-position:-60% 0}}
+.foil-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.foil-tier{font-family:var(--font-display);font-weight:700;font-size:.9rem;opacity:.75}
+.foil-tags{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}
+.tag{font-size:.72rem;font-weight:700;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.14)}
+.tag-secret{background:#2a2135;color:#f1e9ff;border-color:#2a2135}
+.tag-gamerule{background:#233a52;color:#e4f0ff;border-color:#233a52}
+.tag-drawback{background:#5a2620;color:#ffe9e4;border-color:#5a2620}
+.tag-quest{background:#294a2e;color:#e5ffe8;border-color:#294a2e}
+.foil-icon{font-size:2.4rem;line-height:1;margin:6px 0 2px}
+.foil-name{font-size:1.35rem;line-height:1.15}
+.foil-desc{margin:0;font-size:.95rem;line-height:1.4;max-width:34ch}
+.foil.back{justify-content:space-between}
+.back-mark{font-family:var(--font-piece);font-size:7.5rem;line-height:1;text-align:center;opacity:.78;margin:6px 0}
+.foil-foot{margin-top:auto;padding-top:10px;display:flex;gap:8px}
+.foil .btn{color:var(--ink-c);background:rgba(255,255,255,.5);border-color:rgba(0,0,0,.25)}
+.foil .btn:hover:not(:disabled){background:rgba(255,255,255,.8);border-color:rgba(0,0,0,.45)}
+.foil .btn.primary{background:var(--ink-c);color:#fff;border-color:var(--ink-c)}
+.foil .btn.primary:hover:not(:disabled){background:#000}
+
+/* ---------- Lobby ---------- */
+.lobby{max-width:1120px;margin:0 auto;padding:36px 24px 60px}
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:40px;align-items:center}
+.fan{position:relative;height:340px}
+.fan .foil{position:absolute;width:230px;height:300px;top:10px;left:50%;transform-origin:50% 120%}
+.fan .foil:nth-child(1){transform:translateX(-50%) rotate(-14deg) translateX(-120px)}
+.fan .foil:nth-child(2){transform:translateX(-50%) rotate(0deg);z-index:2}
+.fan .foil:nth-child(3){transform:translateX(-50%) rotate(14deg) translateX(120px);z-index:3}
+.hero h1{font-size:clamp(2.4rem,5vw,3.6rem);line-height:1.02;margin-bottom:14px}
+.lede{font-size:1.2rem;max-width:36ch;margin:0 0 10px}
+.fine{color:var(--bone-dim);max-width:44ch;margin:0}
+.entry{margin-top:36px}
+.entry>.field{max-width:320px;margin-bottom:18px}
+.ways{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.way{background:rgba(12,28,23,.55);border:1px solid var(--felt-line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px}
+.way h2{font-size:1.25rem}
+.way p{margin:0;color:var(--bone-dim);font-size:.95rem}
+.step{display:flex;flex-direction:column;gap:8px}
+.steplabel{font-weight:700;font-size:.92rem;margin-top:6px}
+.netmsg{font-size:.92rem;color:var(--bone-dim);margin:0}
+.netmsg.err{color:#ffb4a8}
+
+/* ---------- Tier picker (segmented) ---------- */
+.seg{border:0;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:0;min-width:0}
+.seg legend{font-weight:500;color:var(--bone-dim);font-size:.95rem;padding:0;margin-bottom:4px;width:100%}
+.seg-opt{position:relative;flex:1 1 0;min-width:0}
+.seg-opt input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.seg-opt span{display:block;text-align:center;padding:6px 4px;font-size:.88rem;font-weight:700;border:1px solid var(--felt-line);background:var(--felt-deep);color:var(--bone-dim);cursor:pointer;white-space:nowrap}
+.seg-opt:first-of-type span{border-radius:8px 0 0 8px}
+.seg-opt:last-of-type span{border-radius:0 8px 8px 0}
+.seg-opt+.seg-opt span{border-left:0}
+.seg-opt input:focus-visible+span{outline:2px solid var(--brass);outline-offset:1px;position:relative;z-index:1}
+.seg-opt input:checked+span{color:var(--ink);border-color:transparent}
+.seg-random input:checked+span{background:var(--bone)}
+.seg-silver input:checked+span{background:linear-gradient(135deg,#f5f7f9,#a3aeb9)}
+.seg-gold input:checked+span{background:linear-gradient(135deg,#fff0c0,#c99a33)}
+.seg-prismatic input:checked+span{background:linear-gradient(115deg,#ffd9ea,#d8e2ff 35%,#cff7ea 65%,#fff1c2)}
+
+/* ---------- Selection ---------- */
+.select{max-width:1180px;margin:0 auto;padding:30px 24px 60px}
+.select-head{display:flex;gap:18px;align-items:center;margin-bottom:26px}
+.emblem{width:62px;height:62px;border-radius:50%;flex:none;border:2px solid rgba(0,0,0,.3);box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.emblem.tier-silver{background:linear-gradient(135deg,#fafbfc,#9aa5b0)}
+.emblem.tier-gold{background:linear-gradient(135deg,#fff0bb,#b98522)}
+.emblem.tier-prismatic{background:conic-gradient(#ffc4df,#c6d6ff,#c3f5e3,#fff0b3,#e4c8ff,#ffc4df)}
+.select-head h1{font-size:2.1rem}
+.select-head p{margin:2px 0 0;color:var(--bone-dim)}
+.offer-row{margin-bottom:28px}
+.offer-row h2{font-size:1.2rem;margin-bottom:12px}
+.offers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.offers .foil{min-height:300px}
+.offers .foil.chosen{outline:3px solid var(--brass);outline-offset:4px}
+.offers.locked .foil:not(.chosen){opacity:.35;filter:saturate(.4)}
+.deal{animation:deal .55s cubic-bezier(.2,.8,.2,1) both}
+.offers .foil:nth-child(2).deal{animation-delay:.08s}
+.offers .foil:nth-child(3).deal{animation-delay:.16s}
+@keyframes deal{from{opacity:0;transform:translateY(24px) rotateY(80deg)}to{opacity:1;transform:none}}
+.waiting{color:var(--bone-dim);font-size:1.02rem}
+
+/* ---------- Game ---------- */
+.game{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:22px;max-width:1260px;margin:0 auto;padding:18px 20px 40px;align-items:start}
+.boardcol{display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+.pbar{width:var(--bw,560px);max-width:100%;display:flex;align-items:center;gap:10px;min-height:44px}
+.pbar .sw{width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.5);flex:none}
+.pbar .sw.w{background:#f7f1e3}.pbar .sw.b{background:#231c24;border-color:#6b5f55}
+.pbar .who{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbar .you{color:var(--bone-dim);font-weight:400}
+.pbar .taken{font-family:var(--font-piece);font-size:1.05rem;letter-spacing:-1px;color:var(--bone-dim);overflow:hidden;white-space:nowrap}
+.clock{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;font-size:1.35rem;padding:3px 12px;border-radius:8px;background:rgba(0,0,0,.25);border:1px solid transparent;min-width:92px;text-align:center}
+.clock.run{background:var(--bone);color:var(--ink)}
+.clock.low.run{background:var(--danger);color:#fff}
+.clock .free{font-size:.7rem;font-weight:500;display:block;line-height:1}
+.boardwrap{width:100%;display:flex;justify-content:center}
+.board{
+  width:min(100%,calc(100vh - 210px),720px);width:min(100%,calc(100dvh - 210px),720px);min-width:280px;aspect-ratio:1/1;
+  display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);
+  border:12px solid var(--frame);border-radius:6px;box-shadow:0 0 0 2px var(--brass-deep),0 18px 40px rgba(0,0,0,.45);
+  background:var(--frame);user-select:none;-webkit-user-select:none;touch-action:manipulation;
+}
+.sq{position:relative;border:0;padding:0;margin:0;display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--maple);min-width:0;min-height:0}
+.sq.d{background:var(--walnut)}
+.sq.last::before{content:"";position:absolute;inset:0;background:rgba(242,196,80,.38)}
+.sq.selected::before{content:"";position:absolute;inset:0;background:rgba(242,196,80,.6)}
+.sq.pre::before{content:"";position:absolute;inset:0;background:rgba(58,112,214,.55)}
+.sq.presel::before{content:"";position:absolute;inset:0;background:rgba(58,112,214,.7)}
+.sq .predot{position:absolute;width:34%;height:34%;border-radius:50%;border:calc(var(--sq)*.05) solid rgba(38,74,140,.75);z-index:3;pointer-events:none}
+.banner.pre{border-color:#5a86c8}
+.sq.check::after{content:"";position:absolute;inset:0;background:radial-gradient(circle,rgba(224,64,48,.95) 0%,rgba(224,64,48,.5) 45%,transparent 72%)}
+.sq .coord{position:absolute;font-size:calc(var(--sq)*.17);font-weight:700;line-height:1;opacity:.75;pointer-events:none;z-index:5}
+.sq .coord.rk{top:3px;left:4px}.sq .coord.fl{bottom:2px;right:4px}
+.sq.l .coord{color:var(--walnut)}.sq.d .coord{color:var(--maple)}
+.pc{position:relative;z-index:2;font-family:var(--font-piece);font-size:calc(var(--sq)*.8);line-height:1;pointer-events:none;font-variant-emoji:text}
+.pc.w{color:#fbf6ea;-webkit-text-stroke:1.3px #2a1c10;text-shadow:0 2px 3px rgba(0,0,0,.35)}
+.pc.b{color:#241b26;-webkit-text-stroke:.8px #e4d3b0;text-shadow:0 2px 3px rgba(0,0,0,.35)}
+.pc.frozen{filter:drop-shadow(0 0 6px var(--ice)) saturate(.3)}
+.badge{position:absolute;z-index:4;font-size:calc(var(--sq)*.24);line-height:1;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
+.badge.tr{top:3px;right:3px}.badge.bl{bottom:3px;left:3px}.badge.tl{top:3px;left:3px}.badge.br{bottom:3px;right:3px}
+.sq .dot{position:absolute;width:30%;height:30%;border-radius:50%;background:rgba(28,23,18,.32);z-index:3;pointer-events:none}
+.sq .ring{position:absolute;inset:5%;border-radius:50%;border:calc(var(--sq)*.07) solid rgba(28,23,18,.32);z-index:3;pointer-events:none}
+.sq .tgt{position:absolute;inset:8%;border-radius:10px;border:3px solid var(--brass);box-shadow:0 0 0 2px rgba(0,0,0,.35),inset 0 0 12px rgba(211,166,77,.55);z-index:3;pointer-events:none}
+.sq.area::before{content:"";position:absolute;inset:0;background:rgba(255,110,60,.45);z-index:1}
+.sq .wall{position:absolute;inset:4%;z-index:2;border-radius:4px;pointer-events:none;
+  background:repeating-linear-gradient(0deg,#6d6a63 0 22%,#4b4843 22% 25%),#5e5b55;box-shadow:inset 0 0 0 2px #3a3833,0 3px 6px rgba(0,0,0,.4)}
+.sq .mine{position:absolute;z-index:1;font-size:calc(var(--sq)*.36);opacity:.55;pointer-events:none}
+.banner{width:var(--bw,560px);max-width:100%;min-height:48px;display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 14px;border-radius:10px;background:rgba(10,24,20,.55);border:1px solid var(--felt-line)}
+.banner.alert{border-color:var(--danger)}
+.banner.hot{border-color:var(--brass)}
+.banner .msg{flex:1 1 220px}
+.banner .picks{display:flex;flex-wrap:wrap;gap:6px}
+
+.side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel{background:rgba(10,24,20,.5);border:1px solid var(--felt-line);border-radius:12px;padding:12px}
+.panel>h2{font-size:1.05rem;margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+.panel>h2 small{font-family:var(--font-body);font-weight:400;color:var(--bone-dim);font-size:.85rem}
+.aug{display:grid;grid-template-columns:34px 1fr;gap:2px 10px;padding:10px 10px 10px 0;border-top:1px solid var(--felt-line);position:relative}
+.aug:first-of-type{border-top:0}
+.aug .ic{grid-row:span 3;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;border:1px solid rgba(0,0,0,.35)}
+.aug.tier-silver .ic{background:linear-gradient(135deg,#f5f7f9,#98a3ae)}
+.aug.tier-gold .ic{background:linear-gradient(135deg,#fff0c0,#b98522)}
+.aug.tier-prismatic .ic{background:conic-gradient(#ffc4df,#c6d6ff,#c3f5e3,#fff0b3,#e4c8ff,#ffc4df)}
+.aug .nm{font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.aug .nm .tag{font-size:.66rem;color:var(--ink);background:var(--bone-dim);border-color:transparent}
+.aug .nm .tag-secret{background:#3d3150;color:#efe6ff}
+.aug .d{margin:0;font-size:.9rem;color:#d9d0bb;line-height:1.35}
+.aug .meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:.85rem;color:var(--bone-dim);margin-top:4px}
+.aug .qbar{width:110px;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+.aug .qbar i{display:block;height:100%;background:var(--brass)}
+.aug .done{color:#9fe0af;font-weight:700}
+.aug.hiddenaug .ic{background:#2a2135;color:#e9dcff}
+.aug.used{opacity:.6}
+.tabs{display:flex;gap:4px;margin-bottom:8px}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:4px 10px;cursor:pointer;color:var(--bone-dim);font-weight:700}
+.tabs button[aria-selected=true]{color:var(--bone);border-bottom-color:var(--brass)}
+.tabbody{max-height:250px;overflow:auto;font-size:.9rem;display:flex;flex-direction:column;gap:4px;padding-right:4px}
+.ev{margin:0;color:#d9d0bb}
+.ev.priv{color:#d8c8ff}
+.mvrow{display:grid;grid-template-columns:32px 1fr 1fr;gap:6px;font-variant-numeric:tabular-nums}
+.mvrow span:first-child{color:var(--bone-dim)}
+.chatrow{display:flex;gap:6px;margin-top:8px}
+.chatrow input{flex:1}
+.chatmsg b{color:var(--brass)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.controls label{display:flex;align-items:center;gap:6px;font-size:.9rem;color:var(--bone-dim)}
+
+/* ---------- Scope badges & tooltip ---------- */
+.scope{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:700;padding:1px 8px 1px 6px;border-radius:999px;border:1px solid transparent;cursor:help;white-space:nowrap;line-height:1.5;vertical-align:middle}
+.scope svg{width:12px;height:12px;flex:none}
+.scope-you{background:#1d4b57;color:#def5fa;border-color:#3b7482}
+.scope-them{background:#6a2a22;color:#ffe8e2;border-color:#96463b}
+.scope-both{background:#48336e;color:#efe6ff;border-color:#6d56a0}
+.scope.rule{box-shadow:0 0 0 2px rgba(211,166,77,.85)}
+.foil-scope{display:flex}
+.tip{position:fixed;z-index:80;max-width:280px;padding:8px 11px;border-radius:8px;background:#0e1d19;color:var(--bone);border:1px solid var(--brass);font-size:.86rem;line-height:1.35;box-shadow:0 10px 24px rgba(0,0,0,.45);pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 12px}
+.legend .fine{font-size:.85rem}
+.browse{margin-top:16px}
+.fine.small{font-size:.85rem;margin-top:6px}
+.codex-tabs{display:flex;gap:8px;margin:6px 0 10px;flex-wrap:wrap}
+.codex-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.chipbtn{border:1px solid var(--felt-line);background:transparent;border-radius:999px;padding:3px 11px;cursor:pointer;font-size:.85rem;color:var(--bone-dim)}
+.chipbtn:hover{border-color:var(--brass)}
+.chipbtn.on{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.codex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.codex-grid .foil{min-height:220px}
+.codex-grid .foil-icon{font-size:1.8rem}
+.codex-grid .foil-name{font-size:1.15rem}
+.codex-grid .foil-desc{font-size:.88rem}
+.codex-sub{margin:20px 0 10px;font-size:1.1rem}
+
+/* ---------- Modal ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(5,12,10,.7);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal{background:var(--felt);border:1px solid var(--felt-line);border-radius:14px;padding:22px;max-width:520px;width:100%;box-shadow:0 30px 70px rgba(0,0,0,.6);max-height:90vh;overflow:auto}
+.modal.wide{max-width:1100px}
+.modal h2{font-size:1.6rem;margin-bottom:6px}
+.modal p{margin:0 0 14px;color:var(--bone-dim)}
+.modal .foil p.foil-desc{color:inherit;margin:0}
+.modal .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.promo-opts{display:flex;gap:10px;justify-content:center;margin:10px 0}
+.promo-opts button{width:76px;height:76px;border-radius:12px;background:var(--maple);border:2px solid var(--frame);cursor:pointer}
+.promo-opts .pc{font-size:56px}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--bone);color:var(--ink);padding:10px 16px;border-radius:10px;font-weight:500;z-index:60;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+
+@media (max-width:960px){
+  .game{grid-template-columns:1fr}
+  .board{width:min(100%,720px)}
+  .hero{grid-template-columns:1fr}
+  .fan{height:300px}
+  .fan .foil{width:190px;height:260px}
+  .fan .foil:nth-child(1){transform:translateX(-50%) rotate(-12deg) translateX(-90px)}
+  .fan .foil:nth-child(3){transform:translateX(-50%) rotate(12deg) translateX(90px)}
+  .ways,.offers{grid-template-columns:1fr}
+  .offers .foil{min-height:0}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark" aria-hidden="true">&#9818;&#xFE0E;</span>Augmented Chess</div>
+  <div class="netstatus" id="netStatus"></div>
+  <div class="sound"><button class="iconbtn" id="sndBtn" data-act="sound" aria-pressed="false"></button><input type="range" id="sndVol" min="0" max="100" aria-label="Sound volume"></div>
+</header>
+<main id="app"></main>
+<div id="modal"></div>
+<div id="toast" class="toast" hidden></div>
+<noscript><p style="padding:20px">Augmented Chess needs JavaScript turned on.</p></noscript>
+<script>
+'use strict';
+/* ===================== Core helpers ===================== */
+const FILES = 'abcdefgh';
+const R = i => i >> 3, F = i => i & 7, idx = (r, f) => r * 8 + f;
+const on = (r, f) => r >= 0 && r < 8 && f >= 0 && f < 8;
+const opp = c => (c === 'w' ? 'b' : 'w');
+const rel = (c, r) => (c === 'w' ? r : 7 - r);
+const sqName = i => FILES[F(i)] + (R(i) + 1);
+const CN = { w: 'White', b: 'Black' };
+const PN = { p: 'Pawn', n: 'Knight', b: 'Bishop', r: 'Rook', q: 'Queen', k: 'King' };
+const TIERS = ['silver', 'gold', 'prismatic'];
+const TIER_NAME = { silver: 'Silver', gold: 'Gold', prismatic: 'Prismatic' };
+const ORTH = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const DIAG = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+const ALL8 = ORTH.concat(DIAG);
+const CAMEL = [[3, 1], [1, 3], [-3, 1], [-1, 3], [3, -1], [1, -3], [-3, -1], [-1, -3]];
+const KN = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
+const CENTER = [idx(3, 3), idx(3, 4), idx(4, 3), idx(4, 4)];
+const rnd = a => a[Math.floor(Math.random() * a.length)];
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function pieces(S, c, t) { const o = []; for (let i = 0; i < 64; i++) { const p = S.board[i]; if (p && p.c === c && (!t || p.t === t)) o.push(i); } return o; }
+function kingSq(board, c) { for (let i = 0; i < 64; i++) { const p = board[i]; if (p && p.c === c && p.t === 'k') return i; } return -1; }
+function log(S, t, v) { S.events.push({ t, v: v || 'all', n: S.ply }); if (S.events.length > 120) S.events.splice(0, S.events.length - 120); }
+function sfx(S, k, v) { S.fxn = (S.fxn || 0) + 1; (S.fx || (S.fx = [])).push({ n: S.fxn, k, v: v || 'all' }); if (S.fx.length > 30) S.fx.splice(0, S.fx.length - 30); }
+const ABILITY_SFX = { landmine: 'dig', taunt: 'horn', freeze: 'freeze', kings_leap: 'blink', stonewall: 'wall', haste: 'whoosh', r_haste3: 'whoosh',
+  pawn_storm: 'storm', sleeper_agent: 'flip', mind_control: 'flip', retreat: 'move', sidestep: 'move', switcheroo: 'blink', blink: 'blink',
+  necromancy: 'summon', mitosis: 'summon', meteor: 'boom', snare: 'dig', spyglass: 'reveal', levy: 'summon', transposition: 'blink',
+  shove: 'move', artillery: 'boom', rewind: 'whoosh', assassin: 'capture' };
+const isFrozen = (S, p) => p.fz != null && S.ply <= p.fz && S.ply >= (p.fzf == null ? -1 : p.fzf);
+
+/* ===================== Rule profiles (augment modifiers) ===================== */
+function baseProf() {
+  return { knightOrtho: false, bishopOrtho: false, knightKing: false, queenKnight: false, bishopKnight: false, rookKnight: false,
+    kingQueen: false, pawnFwdCapture: false, pawnAllCapture: false, doubleFrom3: false, noDouble: false, queenMax: 8, rookJump: false,
+    noCastle: false, flexCastle: false, rookPawnImmune: false, kingPawnImmune: false, kingStride: false, camel: false, ricochet: false,
+    phalanx: false, sanctuary: false, queenGuard: false, noCapture: false, outpost: false, promoOnly: null, promoRel: 7, increment: 0, clockRate: 1, freeMoves: 0 };
+}
+function profiles(S) {
+  const P = { w: baseProf(), b: baseProf() };
+  for (const c of ['w', 'b']) for (const a of S.augs[c]) { const d = DEF[a.id]; if (d && d.mod) d.mod(P[c], P[opp(c)], a, S, c); }
+  return P;
+}
+function mkCtx(S) {
+  const walls = new Set();
+  for (const m of S.marks) if (m.k === 'wall' && S.ply <= m.until) walls.add(m.sq);
+  return { S, P: profiles(S), walls };
+}
+
+/* ===================== Move generation ===================== */
+function genPiece(ctx, board, i, p, out) {
+  const { S, P, walls } = ctx; const pr = P[p.c]; const r = R(i), f = F(i);
+  const seen = new Set();
+  const add = (to, x) => { if (seen.has(to)) return; seen.add(to); out.push(Object.assign({ from: i, to, t: p.t, c: p.c }, x || {})); };
+  const kind = to => { if (walls.has(to)) return 'wall'; const q = board[to]; if (!q) return 'empty'; return q.c !== p.c ? 'enemy' : 'own'; };
+  const canCap = to => {
+    const v = board[to], vp = P[v.c];
+    if (v.t !== 'k') {
+      if (pr.noCapture) return false;
+      if (vp.sanctuary && rel(v.c, R(to)) === 0) return false;
+      if (vp.queenGuard && v.t === 'q' && p.t !== 'q' && p.t !== 'k') return false;
+    }
+    if (p.t === 'p' && v.t === 'n' && vp.outpost && rel(v.c, R(to)) >= 4) return false;
+    if (p.t === 'p') {
+      if (v.t === 'r' && vp.rookPawnImmune) return false;
+      if (v.t === 'k' && vp.kingPawnImmune) return false;
+      if (v.t === 'p' && vp.phalanx) for (const df of [-1, 1]) { const ff = F(to) + df; if (ff < 0 || ff > 7) continue; const q = board[idx(R(to), ff)]; if (q && q.c === v.c && q.t === 'p') return false; }
+    }
+    return true;
+  };
+  const ricochet = () => {
+    for (const [dr0, df0] of DIAG) {
+      let dr = dr0, df = df0, rr = r, ff = f, bounced = false, n = 0;
+      while (n < 16) {
+        let nr = rr + dr, nf = ff + df;
+        if (!on(nr, nf)) { if (bounced) break; bounced = true; if (nr < 0 || nr > 7) dr = -dr; if (nf < 0 || nf > 7) df = -df; nr = rr + dr; nf = ff + df; if (!on(nr, nf)) break; }
+        const to = idx(nr, nf), k = kind(to);
+        if (k === 'empty') add(to); else { if (k === 'enemy' && canCap(to)) add(to, { cap: to }); break; }
+        rr = nr; ff = nf; n++;
+      }
+    }
+  };
+  const slide = (dirs, max, jump) => {
+    for (const [dr, df] of dirs) {
+      let rr = r + dr, ff = f + df, n = 0, jumped = false;
+      while (on(rr, ff) && n < max) {
+        const to = idx(rr, ff), k = kind(to);
+        if (k === 'empty') add(to);
+        else if (k === 'wall') break;
+        else {
+          if (k === 'enemy' && canCap(to)) add(to, { cap: to });
+          if (jump && !jumped) jumped = true; else break;
+        }
+        rr += dr; ff += df; n++;
+      }
+    }
+  };
+  const leap = (offs, capOk = true, moveOk = true) => {
+    for (const [dr, df] of offs) {
+      const rr = r + dr, ff = f + df; if (!on(rr, ff)) continue; const to = idx(rr, ff), k = kind(to);
+      if (k === 'empty' && moveOk) add(to); else if (k === 'enemy' && capOk && canCap(to)) add(to, { cap: to });
+    }
+  };
+  switch (p.t) {
+    case 'p': {
+      const dir = p.c === 'w' ? 1 : -1, rr = rel(p.c, r), fwd = r + dir;
+      const pm = (to, x) => { x = x || {}; if (rel(p.c, R(to)) >= pr.promoRel) x.promo = true; add(to, x); };
+      if (on(fwd, f)) {
+        const to = idx(fwd, f), k = kind(to);
+        if (k === 'empty') {
+          pm(to);
+          if (!pr.noDouble && (rr === 1 || (pr.doubleFrom3 && rr === 2))) {
+            const r2 = r + 2 * dir; if (on(r2, f)) { const t2 = idx(r2, f); if (kind(t2) === 'empty') pm(t2, { dbl: true, epSq: to }); }
+          }
+        } else if (k === 'enemy' && pr.pawnFwdCapture && canCap(to)) pm(to, { cap: to });
+        for (const df of [-1, 1]) {
+          if (!on(fwd, f + df)) continue; const t = idx(fwd, f + df), k2 = kind(t);
+          if (k2 === 'enemy' && canCap(t)) pm(t, { cap: t });
+          else if (k2 === 'empty' && !pr.noCapture && S.ep && S.ep.sq === t && S.ep.c !== p.c && board[S.ep.pawn] && board[S.ep.pawn].t === 'p' && board[S.ep.pawn].c !== p.c) pm(t, { cap: S.ep.pawn, ep: true });
+        }
+      }
+      if (pr.pawnAllCapture) for (const [dr, df] of ALL8) {
+        if (!on(r + dr, f + df)) continue; const t = idx(r + dr, f + df);
+        if (kind(t) === 'enemy' && canCap(t)) pm(t, { cap: t });
+      }
+      break;
+    }
+    case 'n': leap(KN); if (pr.knightOrtho) leap(ORTH, false, true); if (pr.knightKing) leap(ALL8); if (pr.camel) leap(CAMEL); break;
+    case 'b': if (pr.ricochet) ricochet(); else slide(DIAG, 8); if (pr.bishopOrtho) leap(ORTH, false, true); if (pr.bishopKnight) leap(KN); break;
+    case 'r': slide(ORTH, 8, pr.rookJump); if (pr.rookKnight) leap(KN); break;
+    case 'q': slide(ALL8, pr.queenMax); if (pr.queenKnight) leap(KN); break;
+    case 'k':
+      if (pr.kingQueen) slide(ALL8, 8); else leap(ALL8);
+      if (pr.kingStride) for (const [dr, df] of ORTH) { if (!on(r + 2 * dr, f + 2 * df)) continue; const m1 = idx(r + dr, f + df), m2 = idx(r + 2 * dr, f + 2 * df); if (kind(m1) === 'empty' && kind(m2) === 'empty') add(m2); }
+      break;
+  }
+}
+function pseudo(ctx, board, color) {
+  const out = [];
+  for (let i = 0; i < 64; i++) { const p = board[i]; if (!p || p.c !== color || isFrozen(ctx.S, p)) continue; genPiece(ctx, board, i, p, out); }
+  return out;
+}
+function kingSafe(ctx, board, c) {
+  const k = kingSq(board, c); if (k < 0) return true; const o = opp(c);
+  for (let i = 0; i < 64; i++) {
+    const p = board[i]; if (!p || p.c !== o || isFrozen(ctx.S, p)) continue;
+    const out = []; genPiece(ctx, board, i, p, out);
+    for (const m of out) if (m.cap === k) return false;
+  }
+  return true;
+}
+function applyBoard(board, m) {
+  const b = board.slice(); const p = b[m.from];
+  if (m.cap != null) { const v = b[m.cap]; if (v && v.t !== 'k' && v.sh > 0) return b; b[m.cap] = null; }
+  b[m.from] = null; b[m.to] = p;
+  if (m.castle) { b[m.rt] = b[m.rf]; b[m.rf] = null; }
+  return b;
+}
+function applyOpsPure(board, ops) {
+  const b = board.slice();
+  for (const o of ops) {
+    switch (o.op) {
+      case 'mv': b[o.to] = b[o.from]; b[o.from] = null; break;
+      case 'rm': b[o.sq] = null; break;
+      case 'add': b[o.sq] = { id: -1, t: o.t, c: o.c }; break;
+      case 'flip': b[o.sq] = Object.assign({}, b[o.sq], { c: opp(b[o.sq].c) }); break;
+      case 'swap': { const t = b[o.a]; b[o.a] = b[o.b]; b[o.b] = t; break; }
+    }
+  }
+  return b;
+}
+function castlingMoves(ctx, c, out) {
+  const S = ctx.S, pr = ctx.P[c]; if (pr.noCastle) return;
+  const r = c === 'w' ? 0 : 7, ki = idx(r, 4), k = S.board[ki];
+  if (!k || k.t !== 'k' || k.c !== c || isFrozen(S, k)) return;
+  if (k.moved && !pr.flexCastle) return;
+  if (!kingSafe(ctx, S.board, c)) return;
+  const sides = [{ rf: 7, path: [5, 6], pass: 5, kt: 6, rt: 5 }, { rf: 0, path: [3, 2, 1], pass: 3, kt: 2, rt: 3 }];
+  for (const s of sides) {
+    const rk = S.board[idx(r, s.rf)];
+    if (!rk || rk.t !== 'r' || rk.c !== c || rk.moved || isFrozen(S, rk)) continue;
+    if (s.path.some(f => S.board[idx(r, f)] || ctx.walls.has(idx(r, f)))) continue;
+    const b = S.board.slice(); b[idx(r, s.pass)] = k; b[ki] = null;
+    if (!kingSafe(ctx, b, c)) continue;
+    out.push({ from: ki, to: idx(r, s.kt), t: 'k', c, castle: true, rf: idx(r, s.rf), rt: idx(r, s.rt) });
+  }
+}
+function legalMoves(S, c, ctx) {
+  ctx = ctx || mkCtx(S);
+  if (S.phase !== 'play') return [];
+  const ps = pseudo(ctx, S.board, c); castlingMoves(ctx, c, ps);
+  let res = ps.filter(m => {
+    if (m.cap != null && S.board[m.cap] && S.board[m.cap].t === 'k') return true;
+    return kingSafe(ctx, applyBoard(S.board, m), c);
+  });
+  if (S.extra && S.extra.color === c) res = res.filter(m => m.cap == null);
+  if (S.taunt && S.taunt.color === c && S.taunt.ply === S.ply) { const f = res.filter(m => m.t === S.taunt.type); if (f.length) res = f; }
+  return res;
+}
+function inCheck(S, c) { return !kingSafe(mkCtx(S), S.board, c); }
+
+function abilityActions(S, c, ai, ctx) {
+  ctx = ctx || mkCtx(S);
+  const a = S.augs[c][ai]; if (!a) return [];
+  const d = DEF[a.id], ac = d.active;
+  if (!ac || a.uses <= 0 || S.phase !== 'play' || S.result || S.turn !== c) return [];
+  if (!ac.free && S.extra) return [];
+  if (!ac.free && S.taunt && S.taunt.color === c && S.taunt.ply === S.ply) {
+    if (legalMoves(S, c, ctx).some(m => m.t === S.taunt.type)) return [];
+  }
+  let acts = ac.targets(S, c, a, ctx) || [];
+  if (!ac.free) acts = acts.filter(x => kingSafe(ctx, applyOpsPure(S.board, x.ops), c));
+  return acts;
+}
+function hasAnyAction(S, c) {
+  const ctx = mkCtx(S);
+  if (legalMoves(S, c, ctx).length) return true;
+  for (let ai = 0; ai < S.augs[c].length; ai++) {
+    const a = S.augs[c][ai], d = DEF[a.id]; if (!d.active || a.uses <= 0) continue;
+    if (!d.active.free) { if (abilityActions(S, c, ai, ctx).length) return true; }
+    else if (d.active.canSave) {
+      for (const act of abilityActions(S, c, ai, ctx)) {
+        const T = JSON.parse(JSON.stringify(S));
+        d.active.apply(T, c, T.augs[c][ai], act);
+        if (legalMoves(T, c).length) return true;
+      }
+    }
+  }
+  return false;
+}
+
+/* Squares a piece could plausibly reach later, for queueing a pre-move. Ignores blockers (so sliders see full rays)
+   and treats every other square as a possible capture. The real check happens when the pre-move is played. */
+function premoveDests(S, i) {
+  const p = S.board[i]; if (!p) return [];
+  const ctx = mkCtx(S); ctx.walls = new Set();
+  const out = [];
+  const lone = Array(64).fill(null); lone[i] = p;
+  genPiece(ctx, lone, i, p, out);
+  const full = lone.map((q, j) => (j === i ? p : { id: -1, t: 'b', c: opp(p.c) }));
+  genPiece(ctx, full, i, p, out);
+  const set = new Set(out.map(m => m.to));
+  if (p.t === 'k') {
+    const pr = ctx.P[p.c], r = p.c === 'w' ? 0 : 7;
+    if (i === idx(r, 4) && !pr.noCastle && (!p.moved || pr.flexCastle)) {
+      for (const [rf, kt] of [[7, 6], [0, 2]]) { const rk = S.board[idx(r, rf)]; if (rk && rk.t === 'r' && rk.c === p.c && !rk.moved) set.add(idx(r, kt)); }
+    }
+  }
+  set.delete(i);
+  return [...set];
+}
+
+/* ===================== Match lifecycle (host only) ===================== */
+const st = () => ({ moves: 0, turns: 0, caps: 0, checks: 0, qcaps: 0, promos: 0, ct: {}, cb: {} });
+function pool(tier) { return AUGS.filter(a => a.tier === tier && !a.reward); }
+function drawOffers(tier) { return shuffle(pool(tier).map(a => a.id)).slice(0, 3).map(id => ({ id, rr: false })); }
+function inst(id) { const d = DEF[id]; return { id, uses: d.active ? d.active.uses : 0, d: {}, rev: !d.secret, done: false, src: null }; }
+function newMatch(o) {
+  const S = { v: 1, mid: Math.random().toString(36).slice(2), fx: [], fxn: 0, phase: 'select', tierMode: TIERS.includes(o.tierMode) ? o.tierMode : 'random', tier: TIERS.includes(o.tierMode) ? o.tierMode : rnd(TIERS), hostColor: o.hostColor, names: { w: '', b: '' }, minutes: o.minutes,
+    offers: { w: [], b: [] }, picks: { w: null, b: null }, board: Array(64).fill(null), turn: 'w', ply: 0, ep: null, half: 0,
+    rep: {}, log: [], events: [], augs: { w: [], b: [] }, lost: { w: [], b: [] }, stats: { w: st(), b: st() }, marks: [], extra: null,
+    grantExtra: false, haste: null, taunt: null, drawOffer: null, clock: { w: 0, b: 0, start: 0, run: false }, result: null,
+    rematch: { w: false, b: false }, nid: 1, last: null };
+  S.offers.w = drawOffers(S.tier); S.offers.b = drawOffers(S.tier);
+  S.names[o.hostColor] = o.hostName || 'Host'; S.names[opp(o.hostColor)] = o.guestName || 'Guest';
+  return S;
+}
+function initialBoard(S) {
+  const back = 'rnbqkbnr'; const b = Array(64).fill(null);
+  for (let f = 0; f < 8; f++) {
+    b[idx(0, f)] = { id: S.nid++, t: back[f], c: 'w', moved: false };
+    b[idx(1, f)] = { id: S.nid++, t: 'p', c: 'w', moved: false };
+    b[idx(6, f)] = { id: S.nid++, t: 'p', c: 'b', moved: false };
+    b[idx(7, f)] = { id: S.nid++, t: back[f], c: 'b', moved: false };
+  }
+  return b;
+}
+function startGame(S) {
+  S.board = initialBoard(S); S.phase = 'play'; S.clock.w = S.clock.b = S.minutes * 60000;
+  for (const c of ['w', 'b']) {
+    const id = S.offers[c][S.picks[c]].id, d = DEF[id];
+    S.augs[c].push(inst(id));
+    if (d.secret) { log(S, `${CN[c]} chose a secret ${TIER_NAME[d.tier]} augment.`, opp(c)); log(S, `You chose ${d.name}. It stays hidden from your opponent until it triggers.`, c); }
+    else log(S, `${CN[c]} chose ${d.name}.`);
+  }
+  const q = [];
+  for (const c of ['w', 'b']) for (const a of S.augs[c]) q.push([c, a]);
+  q.sort((x, y) => DEF[x[1].id].order - DEF[y[1].id].order);
+  for (const [c, a] of q) setupAug(S, c, a);
+  S.rep[posKey(S)] = 1;
+  sfx(S, 'start');
+  turnHooks(S);
+  S.clock.start = Date.now(); S.clock.run = true;
+  evaluateStatus(S, null);
+}
+function setupAug(S, c, a) { const d = DEF[a.id]; if (d.setup) d.setup(S, c, a); }
+function grant(S, c, id, src) {
+  const a = inst(id); a.src = src; S.augs[c].push(a); const d = DEF[id];
+  if (d.secret) { log(S, `${src} granted ${CN[c]} a secret ${TIER_NAME[d.tier]} augment.`, opp(c)); log(S, `${src} granted you ${d.name}.`, c); }
+  else log(S, `${src} granted ${CN[c]} ${d.name}.`);
+  setupAug(S, c, a); return a;
+}
+function grantRandom(S, c, tier, srcAug, n) {
+  const owned = new Set(S.augs[c].map(x => x.id));
+  const cands = shuffle(pool(tier).filter(d => !d.tags.includes('Wildcard') && !owned.has(d.id)));
+  for (let k = 0; k < n && k < cands.length; k++) grant(S, c, cands[k].id, DEF[srcAug.id].name);
+}
+function revealAug(S, c, id) {
+  const a = S.augs[c].find(x => x.id === id && !x.rev);
+  if (a) { a.rev = true; sfx(S, 'reveal'); log(S, `${CN[c]}'s secret augment is revealed: ${DEF[id].name}.`); }
+}
+function posKey(S) {
+  let s = S.turn + (S.ep ? S.ep.sq : '-');
+  for (const p of S.board) s += p ? (p.c === 'w' ? p.t.toUpperCase() : p.t) : '.';
+  let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0).toString(36);
+}
+function san(m, pt, isCap, promo) {
+  if (m.castle) return m.to > m.from ? 'O-O' : 'O-O-O';
+  let s = pt !== 'p' ? pt.toUpperCase() : (isCap ? FILES[F(m.from)] : '');
+  if (isCap) s += 'x'; s += sqName(m.to); if (promo) s += '=' + promo.toUpperCase();
+  return s;
+}
+function end(S, winner, reason) {
+  if (S.result) return;
+  if (S.clock.run) deductClock(S, S.turn, false);
+  S.clock.run = false; S.result = { winner, reason }; sfx(S, 'end'); S.phase = 'over'; S.extra = null; S.drawOffer = null;
+  log(S, winner ? `${CN[winner]} wins: ${reason}.` : `Draw: ${reason}.`);
+}
+function clockFree(S, c, P) { return S.stats[c].turns < P[c].freeMoves; }
+function clockLeft(S, c, elapsed) {
+  if (!S.clock.run || S.turn !== c || S.phase !== 'play') return S.clock[c];
+  const P = profiles(S); if (clockFree(S, c, P)) return S.clock[c];
+  return S.clock[c] - elapsed * P[c].clockRate;
+}
+function deductClock(S, c, inc) {
+  if (!S.clock.run) return; const P = profiles(S); const el = Date.now() - S.clock.start;
+  if (!clockFree(S, c, P)) S.clock[c] = Math.max(0, S.clock[c] - el * P[c].clockRate);
+  if (inc) S.clock[c] += P[c].increment;
+  S.clock.start = Date.now();
+}
+function tickClock(S) {
+  if (S.phase !== 'play' || !S.clock.run) return false;
+  const c = S.turn, left = clockLeft(S, c, Date.now() - S.clock.start);
+  if (left <= 0) { end(S, opp(c), 'Time'); S.clock[c] = 0; return true; }
+  return false;
+}
+function turnHooks(S) { for (const c of ['w', 'b']) for (const a of S.augs[c].slice()) { const d = DEF[a.id]; if (d.onTurn) d.onTurn(S, c, a); } }
+function emit(S, ev) { for (const c of ['w', 'b']) for (const a of S.augs[c].slice()) { const d = DEF[a.id]; if (d.onEvent) d.onEvent(S, c, a, ev); } }
+function checkMines(S) {
+  S.marks = S.marks.filter(mk => {
+    if (mk.k !== 'mine' && mk.k !== 'snare') return true; const p = S.board[mk.sq];
+    if (mk.k === 'snare' && p && p.c !== mk.o && p.t !== 'k') {
+      trapFreeze(S, p); sfx(S, 'freeze'); revealAug(S, mk.o, 'snare');
+      log(S, `🕸️ A hidden snare on ${sqName(mk.sq)} catches ${CN[p.c]}'s ${PN[p.t]}. It is frozen for two of its turns.`); return false;
+    }
+    if (mk.k === 'mine' && p && p.c !== mk.o && p.t !== 'k') {
+      S.board[mk.sq] = null; S.lost[p.c].push(p.t); sfx(S, 'boom'); revealAug(S, mk.o, 'landmine');
+      log(S, `💥 A hidden landmine on ${sqName(mk.sq)} destroyed ${CN[p.c]}'s ${PN[p.t]}.`); return false;
+    }
+    return true;
+  });
+}
+function updateQuests(S) {
+  for (const c of ['w', 'b']) for (const a of S.augs[c].slice()) {
+    const d = DEF[a.id]; if (!d.quest || a.done) continue;
+    if (d.quest.track) d.quest.track(S, c, a);
+    if (d.quest.prog(S, c, a) >= d.quest.goal) { a.done = true; sfx(S, 'quest'); log(S, `✦ ${CN[c]} completed the quest ${d.name}!`); d.quest.reward(S, c, a); }
+  }
+}
+function winChecks(S, first) {
+  for (const c of [first, opp(first)]) for (const a of S.augs[c]) {
+    const d = DEF[a.id]; if (!d.win) continue; const r = d.win(S, c, a);
+    if (r) { if (d.secret) revealAug(S, c, a.id); end(S, c, r); return true; }
+  }
+  return false;
+}
+function kingGone(S) {
+  const w = kingSq(S.board, 'w') < 0, b = kingSq(S.board, 'b') < 0;
+  if (w && b) { end(S, null, 'Both kings fell'); return true; }
+  if (w) { end(S, 'b', 'King captured'); return true; }
+  if (b) { end(S, 'w', 'King captured'); return true; }
+  return false;
+}
+function finishAction(S, c, wasExtra, entry) {
+  S.drawOffer = null;
+  if (kingGone(S)) return;
+  updateQuests(S); if (S.result) return;
+  if (winChecks(S, c)) return;
+  if (!wasExtra && S.haste && S.haste.color === c && S.haste.ply === S.ply) { S.haste = null; S.grantExtra = true; }
+  if (!wasExtra && S.grantExtra) {
+    S.grantExtra = false; S.extra = { color: c };
+    if (legalMoves(S, c).length) { sfx(S, 'whoosh'); log(S, `${CN[c]} takes a bonus move (no captures).`); return; }
+    log(S, `${CN[c]} has no bonus move available.`);
+  }
+  S.grantExtra = false; S.extra = null;
+  passTurn(S, entry);
+}
+function passTurn(S, entry) {
+  const c = S.turn; deductClock(S, c, true); S.stats[c].turns++;
+  S.turn = opp(c); S.ply++;
+  S.marks = S.marks.filter(m => m.k !== 'wall' || m.until >= S.ply);
+  if (S.taunt && S.taunt.ply < S.ply) S.taunt = null;
+  if (S.haste && S.haste.ply < S.ply) S.haste = null;
+  turnHooks(S);
+  const nc = S.turn;
+  if (inCheck(S, nc)) { sfx(S, 'check'); S.stats[c].checks++; if (entry) entry.s += '+'; }
+  updateQuests(S); if (S.result) return;
+  if (winChecks(S, c)) return;
+  const key = posKey(S); S.rep[key] = (S.rep[key] || 0) + 1;
+  evaluateStatus(S, entry); if (S.result) return;
+  if (S.half >= 100) return end(S, null, '50-move rule');
+  if (S.rep[key] >= 3) return end(S, null, 'Threefold repetition');
+  if (S.board.every(p => !p || p.t === 'k')) return end(S, null, 'Insufficient material');
+}
+function evaluateStatus(S, entry) {
+  const c = S.turn; if (S.result || hasAnyAction(S, c)) return;
+  if (inCheck(S, c)) {
+    for (const a of S.augs[c]) { const d = DEF[a.id]; if (d.onMated && d.onMated(S, c, a)) return evaluateStatus(S, entry); }
+    if (entry) entry.s = entry.s.replace(/\+$/, '') + '#';
+    end(S, opp(c), 'Checkmate');
+  } else {
+    const w = opp(c);
+    if (S.augs[w].some(a => DEF[a.id].staleWin)) { revealAug(S, w, 'stalemate_victory'); end(S, w, 'Stalemate victory'); }
+    else end(S, null, 'Stalemate');
+  }
+}
+function doMove(S, c, m, promoT) {
+  const b = S.board, p = b[m.from], wasExtra = !!S.extra, pt = p.t;
+  const capPiece = m.cap != null ? b[m.cap] : null;
+  let captured = null, blocked = false, promoted = null;
+  S.ep = null;
+  if (capPiece && capPiece.t !== 'k' && capPiece.sh > 0) {
+    blocked = true; capPiece.sh--;
+    if (capPiece.shS) { capPiece.shS = false; revealAug(S, capPiece.c, 'iron_pawn'); }
+  } else if (capPiece) {
+    captured = capPiece; b[m.cap] = null; S.lost[captured.c].push(captured.t);
+    S.stats[c].caps++; if (captured.t === 'q') S.stats[c].qcaps++; S.stats[c].ct[captured.t] = (S.stats[c].ct[captured.t] || 0) + 1; S.stats[c].cb[pt] = (S.stats[c].cb[pt] || 0) + 1;
+  }
+  if (!blocked) {
+    b[m.from] = null; b[m.to] = p; p.moved = true;
+    if (m.castle) { const rk = b[m.rf]; b[m.rf] = null; b[m.rt] = rk; if (rk) rk.moved = true; }
+    if (m.dbl) S.ep = { sq: m.epSq, pawn: m.to, c };
+    if (m.promo) { promoted = profiles(S)[c].promoOnly || (['q', 'r', 'b', 'n'].includes(promoT) ? promoT : 'q'); p.t = promoted; S.stats[c].promos++; }
+  }
+  S.half = (pt === 'p' || captured || blocked) ? 0 : S.half + 1;
+  S.stats[c].moves++; S.last = { from: m.from, to: blocked ? m.from : m.to };
+  const entry = { c, s: san(m, pt, !!capPiece, promoted) + (blocked ? ' (blocked)' : '') };
+  S.log.push(entry);
+  sfx(S, blocked ? 'shield' : m.castle ? 'castle' : captured ? 'capture' : 'move');
+  if (promoted) sfx(S, 'promote');
+  if (blocked) log(S, `🛡 A shield on ${sqName(m.cap)} blocked the capture. The attacker stays on ${sqName(m.from)}.`);
+  if (captured && captured.t === 'k') { end(S, c, 'King captured'); return; }
+  emit(S, { mover: c, m, piece: p, captured, blocked, promoted, to: blocked ? m.from : m.to });
+  checkMines(S);
+  finishAction(S, c, wasExtra, entry);
+}
+function applyOpsReal(S, c, ops) {
+  const b = S.board, P = profiles(S);
+  for (const o of ops) {
+    switch (o.op) {
+      case 'mv': {
+        const p = b[o.from]; b[o.from] = null; b[o.to] = p; p.moved = true;
+        if (p.t === 'p' && rel(p.c, R(o.to)) >= P[p.c].promoRel) { p.t = P[p.c].promoOnly || 'q'; S.stats[p.c].promos++; sfx(S, 'promote'); log(S, `${CN[p.c]}'s pawn promotes to a ${PN[p.t].toLowerCase()} on ${sqName(o.to)}.`); }
+        break;
+      }
+      case 'rm': { const v = b[o.sq]; if (v) { S.lost[v.c].push(v.t); b[o.sq] = null; } break; }
+      case 'add': b[o.sq] = { id: S.nid++, t: o.t, c: o.c, moved: true }; break;
+      case 'flip': { const p = b[o.sq]; p.c = opp(p.c); p.moved = true; delete p.sl; delete p.tro; break; }
+      case 'swap': { const t = b[o.a]; b[o.a] = b[o.b]; b[o.b] = t; if (b[o.a]) b[o.a].moved = true; if (b[o.b]) b[o.b].moved = true; break; }
+    }
+  }
+}
+function useAbility(S, c, ai, spec) {
+  const a = S.augs[c][ai]; if (!a) return false; const d = DEF[a.id];
+  const n = v => (v === undefined ? null : v);
+  const acts = abilityActions(S, c, ai);
+  const act = acts.find(x => n(x.pick) === n(spec.pick) && n(x.sq) === n(spec.sq) && n(x.to) === n(spec.to));
+  if (!act) return false;
+  a.uses--; sfx(S, ABILITY_SFX[a.id] || 'ability', d.active.quiet ? c : 'all');
+  if (d.active.reveal && !a.rev) { a.rev = true; sfx(S, 'reveal'); log(S, `${CN[c]}'s secret augment is revealed: ${d.name}.`); }
+  const where = act.sq != null ? ` on ${sqName(act.sq)}` : '';
+  if (d.active.free) {
+    d.active.apply(S, c, a, act);
+    if (!d.active.quiet) log(S, `⚡ ${CN[c]} used ${d.name}${act.pick ? ` (${act.pick})` : where}.`);
+    checkMines(S); if (kingGone(S)) return true;
+    if (!S.extra) evaluateStatus(S, null);
+    return true;
+  }
+  const wasExtra = !!S.extra;
+  applyOpsReal(S, c, act.ops);
+  if (d.active.after) d.active.after(S, c, a, act);
+  S.half = 0; S.ep = null; S.stats[c].moves++;
+  S.last = { from: act.sq != null ? act.sq : null, to: act.to != null ? act.to : (act.sq != null ? act.sq : null) };
+  const entry = { c, s: '⚡' + d.name };
+  S.log.push(entry);
+  log(S, `⚡ ${CN[c]} used ${d.name}${act.pick ? ` (${act.pick})` : ''}${act.sq != null ? ' on ' + sqName(act.sq) : ''}${act.to != null ? ' → ' + sqName(act.to) : ''}.`);
+  checkMines(S);
+  finishAction(S, c, wasExtra, entry);
+  return true;
+}
+/* Host entry point. Returns the (possibly new) state. */
+function hostAct(S, c, a) {
+  if (!S || !a) return S;
+  if (S.phase === 'select') {
+    if (S.picks[c] != null) return S;
+    if (a.kind === 'reroll') {
+      const o = S.offers[c][a.slot]; if (!o || o.rr) return S;
+      const cur = S.offers[c].map(x => x.id);
+      const cand = pool(S.tier).map(d => d.id).filter(id => !cur.includes(id));
+      if (cand.length) { o.id = rnd(cand); o.rr = true; sfx(S, 'deal', c); }
+    } else if (a.kind === 'pick') {
+      if (!S.offers[c][a.slot]) return S;
+      S.picks[c] = a.slot; sfx(S, 'lock');
+      if (S.picks.w != null && S.picks.b != null) startGame(S);
+    }
+  } else if (S.phase === 'play') {
+    if (a.kind === 'resign') { end(S, opp(c), `${CN[c]} resigned`); }
+    else if (a.kind === 'draw') {
+      if (a.local || S.drawOffer === opp(c)) end(S, null, 'Agreement');
+      else if (!S.drawOffer) { S.drawOffer = c; sfx(S, 'notify'); log(S, `${CN[c]} offers a draw.`); }
+    } else if (a.kind === 'declineDraw') { if (S.drawOffer === opp(c)) { S.drawOffer = null; log(S, `${CN[c]} declined the draw.`); } }
+    else if (S.turn === c) {
+      if (a.kind === 'move') {
+        const ms = legalMoves(S, c).filter(m => m.from === a.from && m.to === a.to);
+        const m = ms.find(x => !!x.castle === !!a.castle) || ms[0];
+        if (m) doMove(S, c, m, a.promo);
+      } else if (a.kind === 'ability') useAbility(S, c, a.ai, a.spec || {});
+    }
+  } else if (S.phase === 'over') {
+    if (a.kind === 'rematch') {
+      S.rematch[c] = true;
+      if (a.local || (S.rematch.w && S.rematch.b)) {
+        const hc = opp(S.hostColor);
+        return newMatch({ hostColor: hc, minutes: S.minutes, tierMode: S.tierMode, hostName: S.names[S.hostColor], guestName: S.names[opp(S.hostColor)] });
+      }
+    }
+  }
+  S.v++;
+  return S;
+}
+
+/* ===================== Augment definitions ===================== */
+const AUGS = [], DEF = {};
+function A(id, name, tier, tags, icon, desc, x) {
+  const d = Object.assign({ id, name, tier, tags, icon, desc, order: 5 }, x || {});
+  if (tags.includes('Secret')) d.secret = true;
+  AUGS.push(d); DEF[id] = d;
+}
+function emptySq(S, ctx, i) { return !S.board[i] && !ctx.walls.has(i); }
+function giveShields(S, c, n) {
+  const cand = shuffle(pieces(S, c).filter(i => S.board[i].t !== 'k'));
+  for (const i of cand.slice(0, n)) { S.board[i].sh = (S.board[i].sh || 0) + 1; sfx(S, 'shieldup'); log(S, `🛡 ${CN[c]}'s ${PN[S.board[i].t]} on ${sqName(i)} gains a shield.`); }
+}
+const hasteActive = uses => ({ uses, free: true, targets(S, c) { return (S.extra || S.haste) ? [] : [{}]; },
+  apply(S, c) { S.haste = { color: c, ply: S.ply }; } });
+const pawnDestOk = (c, t, to) => t !== 'p' || (rel(c, R(to)) !== 0 && rel(c, R(to)) !== 7);
+
+/* ---------- Silver: small nudges ---------- */
+A('time_bank', 'Time Bank', 'silver', ['Passive', 'Clock'], '⏳', 'Start with 3 extra minutes on your clock.',
+  { setup(S, c) { S.clock[c] += 180000; } });
+A('outpost', 'Outpost', 'silver', ['Passive'], '🏕️', 'Your knights standing in the enemy half of the board can’t be captured by pawns.',
+  { mod(s) { s.outpost = true; } });
+A('hourglass_hex', 'Hourglass Hex', 'silver', ['Drawback', 'Clock'], '⌛', 'Your opponent starts with 3 fewer minutes (never below 1:00).',
+  { setup(S, c) { const o = opp(c); S.clock[o] = Math.max(60000, S.clock[o] - 180000); } });
+A('consolation_prize', 'Consolation Prize', 'silver', ['Passive'], '🎗️', 'The first time your queen is captured, a random pawn of yours becomes a rook.',
+  { onEvent(S, c, a, ev) {
+    if (a.d.used || !ev.captured || ev.captured.c !== c || ev.captured.t !== 'q' || ev.mover === c) return;
+    a.d.used = true; const ps = pieces(S, c, 'p'); if (!ps.length) return;
+    const i = rnd(ps); S.board[i].t = 'r'; sfx(S, 'promote'); log(S, `🎗️ Consolation Prize: ${CN[c]}'s pawn on ${sqName(i)} becomes a rook.`);
+  } });
+A('golden_ticket', 'Golden Ticket', 'silver', ['Wildcard'], '🎫', 'Immediately gain a random Gold augment.',
+  { setup(S, c, a) { grantRandom(S, c, 'gold', a, 1); } });
+A('sprinters', 'Sprinters', 'silver', ['Passive'], '👟', 'Your pawns can advance two squares from your 3rd rank, not just your 2nd.',
+  { mod(s) { s.doubleFrom3 = true; } });
+A('rust', 'Rust', 'silver', ['Drawback'], '🔩', 'Enemy pawns can never advance two squares.',
+  { mod(s, o) { o.noDouble = true; } });
+A('restless_monarch', 'Restless Monarch', 'silver', ['Passive'], '🏰', 'You may castle even after your king has moved, as long as it is back on its home square and the rook has not moved.',
+  { mod(s) { s.flexCastle = true; } });
+A('iron_pawn', 'Iron Pawn', 'silver', ['Passive', 'Secret'], '🛡️', 'One random pawn of yours secretly carries a shield that blocks the first capture against it. Revealed when it blocks.',
+  { order: 9, setup(S, c) { const ps = pieces(S, c, 'p'); if (!ps.length) return; const i = rnd(ps), p = S.board[i]; p.sh = (p.sh || 0) + 1; p.shS = true; log(S, `Your Iron Pawn is on ${sqName(i)}.`, c); } });
+A('retreat', 'Tactical Retreat', 'silver', ['Active'], '↩️', 'Twice per game, as your move, step one of your pawns one square straight back onto an empty square (not onto your back rank).',
+  { active: { uses: 2, targets(S, c, a, ctx) {
+    const out = [], dir = c === 'w' ? 1 : -1;
+    for (const i of pieces(S, c, 'p')) { const r = R(i) - dir; if (!on(r, F(i)) || rel(c, r) === 0) continue; const to = idx(r, F(i)); if (emptySq(S, ctx, to)) out.push({ sq: i, to, ops: [{ op: 'mv', from: i, to }] }); }
+    return out; } } });
+A('sidestep', 'Sidestep', 'silver', ['Active'], '↔️', 'Twice per game, as your move, step one of your pawns one square sideways onto an empty square.',
+  { active: { uses: 2, targets(S, c, a, ctx) {
+    const out = [];
+    for (const i of pieces(S, c, 'p')) for (const df of [-1, 1]) { if (!on(R(i), F(i) + df)) continue; const to = idx(R(i), F(i) + df); if (emptySq(S, ctx, to)) out.push({ sq: i, to, ops: [{ op: 'mv', from: i, to }] }); }
+    return out; } } });
+A('knight_hop', "Knight's Hop", 'silver', ['Passive'], '🐎', 'Your knights can also step one square orthogonally, without capturing.',
+  { mod(s) { s.knightOrtho = true; } });
+A('bishop_shuffle', "Bishop's Shuffle", 'silver', ['Passive'], '⛪', 'Your bishops can also step one square orthogonally, without capturing. Yes, this lets them change square colour.',
+  { mod(s) { s.bishopOrtho = true; } });
+A('switcheroo', 'Switcheroo', 'silver', ['Active'], '🔀', 'Once per game, as your move, swap two of your pieces that stand next to each other. Pawns can’t land on either back rank.',
+  { active: { uses: 1, targets(S, c) {
+    const out = [];
+    for (const i of pieces(S, c)) for (const [dr, df] of ALL8) {
+      const r = R(i) + dr, f = F(i) + df; if (!on(r, f)) continue; const j = idx(r, f), q = S.board[j];
+      if (!q || q.c !== c) continue; if (!pawnDestOk(c, S.board[i].t, j) || !pawnDestOk(c, q.t, i)) continue;
+      out.push({ sq: i, to: j, ops: [{ op: 'swap', a: i, b: j }] });
+    }
+    return out; } } });
+A('castle_keep', 'Castle Keep', 'silver', ['Passive'], '🧱', 'Your rooks cannot be captured by pawns.',
+  { mod(s) { s.rookPawnImmune = true; } });
+A('aloof_king', 'Aloof King', 'silver', ['Passive'], '👑', 'Enemy pawns cannot capture or check your king.',
+  { mod(s) { s.kingPawnImmune = true; } });
+A('landmine', 'Landmine', 'silver', ['Active', 'Secret'], '💣', 'Once per game, as a free action, bury a hidden mine on an empty square in your half. The first enemy piece (not the king) to stop there is destroyed. Revealed when it detonates.',
+  { active: { uses: 1, free: true, quiet: true, targets(S, c, a, ctx) {
+    const out = []; for (let i = 0; i < 64; i++) { if (rel(c, R(i)) > 3 || !emptySq(S, ctx, i)) continue; if (S.marks.some(m => m.sq === i && m.k === 'mine' && m.o === c)) continue; out.push({ sq: i }); }
+    return out; },
+    apply(S, c, a, act) { S.marks.push({ k: 'mine', sq: act.sq, o: c, src: 'landmine' }); log(S, `You buried a landmine on ${sqName(act.sq)}.`, c); } } });
+A('bare_king', 'Bare King', 'silver', ['Gamerule'], '🏳️', 'You also win if your opponent is reduced to a lone king.',
+  { win(S, c) { const o = opp(c); for (const p of S.board) if (p && p.c === o && p.t !== 'k') return null; return 'Bare king'; } });
+A('stalemate_victory', 'Stalemate Victory', 'silver', ['Gamerule'], '🪤', 'If you stalemate your opponent, you win instead of drawing.',
+  { staleWin: true });
+A('first_blood', 'First Blood', 'silver', ['Quest'], '🩸', 'Quest: capture 3 enemy pieces. Reward: three random pieces of yours (not the king) gain a shield.',
+  { quest: { goal: 3, prog: (S, c) => S.stats[c].caps, reward(S, c) { giveShields(S, c, 3); } } });
+A('pilgrim', 'Pilgrim Pawn', 'silver', ['Quest'], '🥾', 'Quest: get a pawn to your 6th rank. Reward: Vanguard — your pawns can also capture one square straight ahead.',
+  { quest: { goal: 1, prog: (S, c) => (pieces(S, c, 'p').some(i => rel(c, R(i)) >= 5) ? 1 : 0), reward(S, c) { grant(S, c, 'r_vanguard', 'Pilgrim Pawn'); } } });
+
+/* ---------- Gold: real rule changes ---------- */
+A('platinum_ticket', 'Platinum Ticket', 'gold', ['Wildcard'], '🎟️', 'Immediately gain a random Prismatic augment.',
+  { setup(S, c, a) { grantRandom(S, c, 'prismatic', a, 1); } });
+A('double_down', 'Double Down', 'gold', ['Wildcard'], '🎲', 'Immediately gain two different random Silver augments.',
+  { setup(S, c, a) { grantRandom(S, c, 'silver', a, 2); } });
+A('pressure', 'Pressure', 'gold', ['Drawback', 'Clock'], '🌡️', 'Your opponent’s clock runs 25% faster.',
+  { mod(s, o) { o.clockRate *= 1.25; } });
+A('moat', 'Moat', 'gold', ['Drawback'], '🌊', 'Your opponent can never castle.',
+  { mod(s, o) { o.noCastle = true; } });
+A('early_promotion', 'Early Promotion', 'gold', ['Passive'], '🎓', 'Your pawns promote on reaching your 7th rank.',
+  { mod(s) { s.promoRel = Math.min(s.promoRel, 6); } });
+A('paladins', 'Paladins', 'gold', ['Passive'], '🛡', 'Your knights can also move and capture one square in any direction, like a king.',
+  { mod(s) { s.knightKing = true; } });
+A('royal_aegis', 'Royal Aegis', 'gold', ['Passive'], '🔰', 'Your queen and both rooks start with a shield that blocks the first capture against each.',
+  { setup(S, c) { for (const i of pieces(S, c)) { const p = S.board[i]; if (p.t === 'q' || p.t === 'r') p.sh = (p.sh || 0) + 1; } } });
+A('pawn_storm', 'Pawn Storm', 'gold', ['Active'], '🌪️', 'Once per game, as your move, every pawn of yours with an empty square ahead advances one square at once.',
+  { active: { uses: 1, targets(S, c, a, ctx) {
+    const ops = [], dir = c === 'w' ? 1 : -1;
+    for (const i of pieces(S, c, 'p')) { const r = R(i) + dir; if (!on(r, F(i))) continue; const to = idx(r, F(i)); if (emptySq(S, ctx, to)) ops.push({ op: 'mv', from: i, to }); }
+    return ops.length ? [{ ops }] : []; } } });
+A('taunt', 'Taunt', 'gold', ['Active'], '📣', 'Once per game, as a free action, name a piece type. On their next turn your opponent must move that type if they legally can.',
+  { active: { uses: 1, free: true, targets(S) { if (S.taunt) return []; return ['p', 'n', 'b', 'r', 'q', 'k'].map(t => ({ pick: PN[t], t })); },
+    apply(S, c, a, act) { S.taunt = { color: opp(c), type: act.t, ply: S.ply + 1 }; } } });
+A('freeze', 'Freeze', 'gold', ['Active'], '❄️', 'Twice per game, as a free action, freeze an enemy piece (not the king). It can’t move, capture, or give check until your next turn.',
+  { active: { uses: 2, free: true, canSave: true, targets(S, c) {
+    return pieces(S, opp(c)).filter(i => S.board[i].t !== 'k' && !isFrozen(S, S.board[i])).map(i => ({ sq: i })); },
+    apply(S, c, a, act) { const p = S.board[act.sq]; p.fz = S.ply + 1; p.fzf = S.ply; delete p.fzk; } } });
+A('kings_leap', "King's Leap", 'gold', ['Active'], '🦘', 'Once per game, as your move, teleport your king to any empty square on your first two ranks.',
+  { active: { uses: 1, targets(S, c, a, ctx) {
+    const k = kingSq(S.board, c); if (k < 0) return []; const out = [];
+    for (let i = 0; i < 64; i++) if (rel(c, R(i)) <= 1 && emptySq(S, ctx, i)) out.push({ sq: k, to: i, ops: [{ op: 'mv', from: k, to: i }] });
+    return out; } } });
+A('siege_rooks', 'Siege Rooks', 'gold', ['Passive'], '🏯', 'Your rooks can jump over one piece (friend or foe) while moving along a line.',
+  { mod(s) { s.rookJump = true; } });
+A('veterans', 'Veterans', 'gold', ['Passive'], '🎖️', 'Whenever one of your pieces (not the king) captures, it gains a shield if it doesn’t already have one.',
+  { onEvent(S, c, a, ev) { if (ev.mover === c && ev.captured && ev.piece.t !== 'k' && !(ev.piece.sh > 0) && S.board[ev.to] === ev.piece) { ev.piece.sh = 1; sfx(S, 'shieldup'); log(S, `🎖 ${CN[c]}'s ${PN[ev.piece.t]} on ${sqName(ev.to)} earns a shield.`); } } });
+A('haste', 'Haste', 'gold', ['Active'], '💨', 'Once per game, as a free action: this turn you make two moves. The second move can’t capture.',
+  { active: hasteActive(1) });
+A('stonewall', 'Stonewall', 'gold', ['Active'], '🪨', 'Twice per game, as a free action, raise a wall on any empty square. Nothing can enter or pass through it. It lasts until your next turn.',
+  { active: { uses: 2, free: true, canSave: true, targets(S, c, a, ctx) { const out = []; for (let i = 0; i < 64; i++) if (emptySq(S, ctx, i)) out.push({ sq: i }); return out; },
+    apply(S, c, a, act) { S.marks.push({ k: 'wall', sq: act.sq, o: c, until: S.ply + 1 }); } } });
+A('kingslayer', "Kingslayer's Path", 'gold', ['Quest'], '🗡️', 'Quest: give check 4 times. Reward: a random pawn of yours becomes a queen. With no pawns left, a new queen appears on your back rank instead.',
+  { quest: { goal: 4, prog: (S, c) => S.stats[c].checks, reward(S, c) {
+    const ps = pieces(S, c, 'p'); if (ps.length) { const i = rnd(ps); S.board[i].t = 'q'; log(S, `👑 ${CN[c]}'s pawn on ${sqName(i)} is crowned a queen.`); }
+    else { const back = shuffle([...Array(64).keys()].filter(i => rel(c, R(i)) === 0 && !S.board[i])); if (back.length) { S.board[back[0]] = { id: S.nid++, t: 'q', c, moved: true }; log(S, `👑 A new queen appears for ${CN[c]} on ${sqName(back[0])}.`); } } } } });
+A('bounty', 'Bounty', 'gold', ['Quest'], '💰', 'Quest: capture the enemy queen. Reward: Amazon — your queens can also move like knights.',
+  { quest: { goal: 1, prog: (S, c) => S.stats[c].qcaps, reward(S, c) { grant(S, c, 'amazon', 'Bounty'); } } });
+A('king_of_the_hill', 'King of the Hill', 'gold', ['Gamerule'], '⛰️', 'You also win the moment your king stands on one of the four centre squares.',
+  { win(S, c) { const k = kingSq(S.board, c); return CENTER.includes(k) ? 'King of the hill' : null; } });
+A('three_check', 'Three-Check', 'gold', ['Gamerule'], '✔️', 'You also win when you give check for the third time.',
+  { win(S, c) { return S.stats[c].checks >= 3 ? 'Three checks' : null; } });
+A('sleeper_agent', 'Sleeper Agent', 'gold', ['Active', 'Secret'], '🕵️', 'One random enemy pawn is secretly loyal to you. Once per game, as your move, flip it to your side. Revealed when used.',
+  { order: 9, setup(S, c) { const ps = pieces(S, opp(c), 'p'); if (!ps.length) return; const i = rnd(ps); S.board[i].sl = c; log(S, `Your sleeper agent is the enemy pawn on ${sqName(i)}.`, c); },
+    active: { uses: 1, reveal: true, targets(S, c) { return pieces(S, opp(c)).filter(i => S.board[i].sl === c).map(i => ({ sq: i, ops: [{ op: 'flip', sq: i }] })); } } });
+A('dead_mans_switch', "Dead Man's Switch", 'gold', ['Passive', 'Secret'], '☠️', 'The first time your queen is captured, the capturing piece is destroyed too (unless it is the king). Revealed when it triggers.',
+  { onEvent(S, c, a, ev) {
+    if (a.d.used || !ev.captured || ev.captured.c !== c || ev.captured.t !== 'q' || ev.mover === c) return;
+    a.d.used = true; revealAug(S, c, 'dead_mans_switch');
+    if (ev.piece.t !== 'k' && S.board[ev.to] === ev.piece) { S.board[ev.to] = null; S.lost[ev.piece.c].push(ev.piece.t); sfx(S, 'boom'); log(S, `💀 The ${PN[ev.piece.t]} that took ${CN[c]}'s queen is destroyed.`); }
+  } });
+
+/* ---------- Prismatic: the game changes shape ---------- */
+A('kaleidoscope', 'Kaleidoscope', 'prismatic', ['Wildcard'], '🔮', 'Immediately gain a random Prismatic augment and a random Silver augment.',
+  { setup(S, c, a) { grantRandom(S, c, 'prismatic', a, 1); grantRandom(S, c, 'silver', a, 1); } });
+A('amazon', 'Amazon', 'prismatic', ['Passive'], '🏹', 'Your queens can also move like knights.',
+  { mod(s) { s.queenKnight = true; } });
+A('coronation', 'Coronation', 'prismatic', ['Passive'], '👸', 'Your kingside knight starts the game as a second queen.',
+  { order: 1, setup(S, c) {
+    const r = c === 'w' ? 0 : 7; let i = idx(r, 6); let p = S.board[i];
+    if (!p || p.t !== 'n' || p.c !== c) { const ks = pieces(S, c, 'n'); if (!ks.length) return; i = ks[ks.length - 1]; p = S.board[i]; }
+    p.t = 'q'; log(S, `👑 ${CN[c]}'s knight on ${sqName(i)} is crowned a queen.`); } });
+A('archbishops', 'Archbishops', 'prismatic', ['Passive'], '⚜️', 'Your bishops can also move like knights.',
+  { mod(s) { s.bishopKnight = true; } });
+A('chancellors', 'Chancellors', 'prismatic', ['Passive'], '🏛️', 'Your rooks can also move like knights.',
+  { mod(s) { s.rookKnight = true; } });
+A('legion', 'Legion', 'prismatic', ['Passive'], '🪖', 'Your pawns can capture one square in any direction.',
+  { mod(s) { s.pawnAllCapture = true; } });
+A('warlord', 'Warlord', 'prismatic', ['Passive'], '⚔️', 'Your king moves like a queen. It still can’t move into check.',
+  { mod(s) { s.kingQueen = true; } });
+A('momentum', 'Momentum', 'prismatic', ['Passive'], '🌀', 'Whenever you capture with a move, you immediately get a bonus move that can’t capture.',
+  { onEvent(S, c, a, ev) { if (ev.mover === c && ev.captured && !S.extra) { S.grantExtra = true; } } });
+A('phoenix', 'Phoenix', 'prismatic', ['Passive'], '🔥', 'The first time you would be checkmated, your king instead bursts into flame and reappears on a random safe empty square. Then you play on.',
+  { onMated(S, c, a) {
+    if (a.d.used) return false; const ctx = mkCtx(S), k = kingSq(S.board, c); if (k < 0) return false;
+    const cand = [];
+    for (let i = 0; i < 64; i++) { if (!emptySq(S, ctx, i)) continue; const b = S.board.slice(); b[i] = b[k]; b[k] = null; if (kingSafe(ctx, b, c)) cand.push(i); }
+    if (!cand.length) return false;
+    const t = rnd(cand); S.board[t] = S.board[k]; S.board[k] = null; S.board[t].moved = true; a.d.used = true; sfx(S, 'phoenix');
+    log(S, `🔥 Phoenix! ${CN[c]}'s king escapes checkmate and reappears on ${sqName(t)}.`); return true; } });
+A('necromancy', 'Necromancy', 'prismatic', ['Active'], '🦴', 'Twice per game, as your move, raise one of your captured pieces (not a queen) on an empty square of your back rank (pawns return on your 2nd rank).',
+  { active: { uses: 2, targets(S, c, a, ctx) {
+    const types = [...new Set(S.lost[c].filter(t => t !== 'k' && t !== 'q'))], out = [];
+    for (const t of types) for (let i = 0; i < 64; i++) { if (rel(c, R(i)) !== (t === 'p' ? 1 : 0) || !emptySq(S, ctx, i)) continue; out.push({ pick: PN[t], t, sq: i, ops: [{ op: 'add', sq: i, t, c }] }); }
+    return out; },
+    after(S, c, a, act) { const k = S.lost[c].indexOf(act.t); if (k >= 0) S.lost[c].splice(k, 1); } } });
+A('meteor', 'Meteor', 'prismatic', ['Active'], '☄️', 'Once per game, as your move, call down a meteor on a 3×3 area. Every piece in it is destroyed, yours included. Kings survive.',
+  { active: { uses: 1, targets(S) {
+    const out = [];
+    for (let r = 1; r <= 6; r++) for (let f = 1; f <= 6; f++) {
+      const ops = [], area = [];
+      for (let dr = -1; dr <= 1; dr++) for (let df = -1; df <= 1; df++) { const j = idx(r + dr, f + df); area.push(j); const p = S.board[j]; if (p && p.t !== 'k') ops.push({ op: 'rm', sq: j }); }
+      if (ops.length) out.push({ sq: idx(r, f), area, ops });
+    }
+    return out; } } });
+A('mind_control', 'Mind Control', 'prismatic', ['Active'], '🧠', 'Once per game, as your move, take permanent control of an enemy piece (not the king or a queen).',
+  { active: { uses: 1, targets(S, c) { return pieces(S, opp(c)).filter(i => !['k', 'q'].includes(S.board[i].t)).map(i => ({ sq: i, ops: [{ op: 'flip', sq: i }] })); } } });
+A('blink', 'Blink', 'prismatic', ['Active'], '✨', 'Three times per game, as your move, teleport one of your pieces (not the king) to any empty square. Pawns can’t land on either back rank.',
+  { active: { uses: 3, targets(S, c, a, ctx) {
+    const out = [];
+    for (const i of pieces(S, c)) { const t = S.board[i].t; if (t === 'k') continue; for (let j = 0; j < 64; j++) if (emptySq(S, ctx, j) && pawnDestOk(c, t, j)) out.push({ sq: i, to: j, ops: [{ op: 'mv', from: i, to: j }] }); }
+    return out; } } });
+A('mitosis', 'Mitosis', 'prismatic', ['Active'], '🧬', 'Twice per game, as your move, clone one of your pawns, knights, bishops, or rooks onto an adjacent empty square.',
+  { active: { uses: 2, targets(S, c, a, ctx) {
+    const out = [];
+    for (const i of pieces(S, c)) { const t = S.board[i].t; if (t === 'k' || t === 'q') continue;
+      for (const [dr, df] of ALL8) { const r = R(i) + dr, f = F(i) + df; if (!on(r, f)) continue; const j = idx(r, f); if (emptySq(S, ctx, j) && pawnDestOk(c, t, j)) out.push({ sq: i, to: j, ops: [{ op: 'add', sq: j, t, c }] }); } }
+    return out; } } });
+A('trojan_horse', 'Trojan Horse', 'prismatic', ['Passive', 'Secret'], '🎠', 'One of your knights is secretly a Trojan Horse. When it is captured, the capturing piece defects to your side (kings are immune). Revealed when it triggers.',
+  { order: 9, setup(S, c) { const ks = pieces(S, c, 'n'); if (!ks.length) return; const i = rnd(ks); S.board[i].tro = c; log(S, `Your Trojan Horse is the knight on ${sqName(i)}.`, c); },
+    onEvent(S, c, a, ev) {
+      if (!ev.captured || ev.captured.tro !== c || ev.mover === c) return;
+      revealAug(S, c, 'trojan_horse');
+      if (ev.piece.t !== 'k' && S.board[ev.to] === ev.piece) { ev.piece.c = c; ev.piece.moved = true; delete ev.piece.sl; sfx(S, 'flip'); log(S, `🎠 The capturing ${PN[ev.piece.t]} on ${sqName(ev.to)} defects to ${CN[c]}!`); }
+      else log(S, `🎠 The Trojan Horse was taken by a king and fizzles.`);
+    } });
+A('ascension', 'Ascension', 'prismatic', ['Quest'], '🌟', 'Quest: promote a pawn. Reward: every other pawn you have becomes a knight.',
+  { quest: { goal: 1, prog: (S, c) => S.stats[c].promos, reward(S, c) { for (const i of pieces(S, c, 'p')) S.board[i].t = 'n'; log(S, `🌟 ${CN[c]}'s pawns ascend into knights.`); } } });
+A('crusade', 'Crusade', 'prismatic', ['Quest'], '🚩', 'Quest: occupy each of the four centre squares at some point (they don’t have to be held at once). Reward: three Haste charges — free actions that give you two moves in one turn.',
+  { quest: { goal: 4, track(S, c, a) { a.d.v = a.d.v || []; for (const i of CENTER) { const p = S.board[i]; if (p && p.c === c && !a.d.v.includes(i)) a.d.v.push(i); } },
+    prog: (S, c, a) => (a.d.v || []).length, reward(S, c) { grant(S, c, 'r_haste3', 'Crusade'); } } });
+A('annihilation', 'Annihilation', 'prismatic', ['Gamerule'], '💥', 'You also win when you have captured 10 enemy pieces with moves.',
+  { win(S, c) { return S.stats[c].caps >= 10 ? 'Annihilation' : null; } });
+A('invasion', 'Invasion', 'prismatic', ['Gamerule'], '🏴', 'You also win the moment your king reaches your opponent’s back rank.',
+  { win(S, c) { const k = kingSq(S.board, c); return k >= 0 && rel(c, R(k)) === 7 ? 'Invasion' : null; } });
+A('shackles', 'Shackles', 'prismatic', ['Drawback'], '⛓️', 'Enemy queens can move at most 2 squares at a time.',
+  { mod(s, o) { o.queenMax = Math.min(o.queenMax, 2); } });
+A('pawn_plague', 'Pawn Plague', 'prismatic', ['Drawback'], '🦠', 'Three random enemy pawns are removed before the game starts.',
+  { order: 1, setup(S, c) { const o = opp(c); const ps = shuffle(pieces(S, o, 'p')).slice(0, 3); for (const i of ps) { S.board[i] = null; S.lost[o].push('p'); } if (ps.length) log(S, `🦠 Pawn Plague removes ${CN[o]}'s pawns on ${ps.map(sqName).join(', ')}.`); } });
+
+
+/* ===================== Expansion: ten more per tier ===================== */
+function spawnPawns(S, c, n, fromLost) {
+  const walls = new Set(S.marks.filter(m => m.k === 'wall' && S.ply <= m.until).map(m => m.sq));
+  const sqs = shuffle([...Array(64).keys()].filter(i => rel(c, R(i)) === 1 && !S.board[i] && !walls.has(i)));
+  const out = [];
+  for (const i of sqs) {
+    if (out.length >= n) break;
+    if (fromLost) { const k = S.lost[c].indexOf('p'); if (k < 0) break; S.lost[c].splice(k, 1); }
+    S.board[i] = { id: S.nid++, t: 'p', c, moved: true }; out.push(i);
+  }
+  return out;
+}
+function pawnChecks(S, c) {
+  const k = kingSq(S.board, opp(c)); if (k < 0) return false; const ctx = mkCtx(S);
+  for (const i of pieces(S, c, 'p')) { const p = S.board[i]; if (isFrozen(S, p)) continue; const out = []; genPiece(ctx, S.board, i, p, out); if (out.some(m => m.cap === k)) return true; }
+  return false;
+}
+function trapFreeze(S, p) { p.fzf = S.ply + 1; p.fz = S.ply + 4; delete p.fzk; }
+function hideOnOwnPawn(S, c, tag, label) {
+  const ps = pieces(S, c, 'p'); if (!ps.length) return; const i = rnd(ps); S.board[i][tag] = c;
+  log(S, `Your ${label} is the pawn on ${sqName(i)}.`, c);
+}
+const AGENDA = { rooks: 'destroy two enemy rooks', bishops: 'destroy two enemy bishops', knight: 'land a knight on the enemy back rank', pawncheck: 'give check with a pawn' };
+
+/* ---------- Silver ---------- */
+A('royal_stride', 'Royal Stride', 'silver', ['Passive'], '🚶', 'Your king can also move two squares straight along a rank or file if both squares are empty. It can’t capture this way.',
+  { mod(s) { s.kingStride = true; } });
+A('squires_oath', "Squire's Oath", 'silver', ['Quest'], '🤺', 'Quest: capture 3 times with your knights. Reward: Paladins — your knights can also move and capture one square in any direction.',
+  { quest: { goal: 3, prog: (S, c) => (S.stats[c].cb || {}).n || 0, reward(S, c) { grant(S, c, 'paladins', "Squire's Oath"); } } });
+A('snare', 'Snare', 'silver', ['Active', 'Secret'], '🕸️', 'Once per game, as a free action, hide a snare on an empty square in your half. The first enemy piece (not the king) to stop there is frozen for its owner’s next two turns. Revealed when it springs.',
+  { active: { uses: 1, free: true, quiet: true, targets(S, c, a, ctx) {
+    const out = []; for (let i = 0; i < 64; i++) { if (rel(c, R(i)) > 3 || !emptySq(S, ctx, i)) continue; if (S.marks.some(m => m.sq === i && m.o === c && (m.k === 'mine' || m.k === 'snare'))) continue; out.push({ sq: i }); }
+    return out; },
+    apply(S, c, a, act) { S.marks.push({ k: 'snare', sq: act.sq, o: c, src: 'snare' }); log(S, `You hid a snare on ${sqName(act.sq)}.`, c); } } });
+A('phalanx', 'Phalanx', 'silver', ['Passive'], '🔗', 'Enemy pawns can’t capture any of your pawns that has another of your pawns directly beside it.',
+  { mod(s) { s.phalanx = true; } });
+A('short_leash', 'Short Leash', 'silver', ['Drawback'], '🪢', 'Enemy queens can move at most 5 squares at a time.',
+  { mod(s, o) { o.queenMax = Math.min(o.queenMax, 5); } });
+A('spyglass', 'Spyglass', 'silver', ['Active'], '🔭', 'Once per game, as a free action, reveal all of your opponent’s secret augments and hidden pieces. If they have none, you keep the charge for later.',
+  { active: { uses: 1, free: true, targets() { return [{}]; },
+    apply(S, c) {
+      const o = opp(c), hid = S.augs[o].filter(x => !x.rev);
+      for (const x of hid) revealAug(S, o, x.id);
+      for (const p of S.board) if (p && p.c === o && p.shS) p.shS = false;
+      if (!hid.length) { const me = S.augs[c].find(x => x.id === 'spyglass' && x.uses === 0); if (me) me.uses = 1; log(S, `🔭 Nothing was hidden. ${CN[c]} keeps the Spyglass charge.`); }
+    } } });
+A('gambit', 'Gambit', 'silver', ['Quest'], '♟️', 'Quest: lose 3 pawns. Reward: two of them return on empty squares of your 2nd rank.',
+  { quest: { goal: 3, prog: (S, c) => S.lost[c].filter(t => t === 'p').length,
+    reward(S, c) { const b = spawnPawns(S, c, 2, true); if (b.length) { sfx(S, 'summon'); log(S, `♟️ ${CN[c]}'s pawns return on ${b.map(sqName).join(' and ')}.`); } } } });
+A('safe_harbor', 'Safe Harbor', 'silver', ['Quest'], '⚓', 'Quest: castle. Reward: the rook you castled with gains a shield, and so does a random pawn of yours.',
+  { onEvent(S, c, a, ev) { if (ev.mover === c && ev.m.castle && !ev.blocked && !a.d.rook && S.board[ev.m.rt]) a.d.rook = S.board[ev.m.rt].id; },
+    quest: { goal: 1, prog: (S, c, a) => (a.d.rook ? 1 : 0),
+      reward(S, c, a) {
+        const i = S.board.findIndex(p => p && p.id === a.d.rook); if (i >= 0) { S.board[i].sh = (S.board[i].sh || 0) + 1; sfx(S, 'shieldup'); }
+        const ps = shuffle(pieces(S, c, 'p')); if (ps.length) { S.board[ps[0]].sh = (S.board[ps[0]].sh || 0) + 1; log(S, `🛡 ${CN[c]}'s pawn on ${sqName(ps[0])} gains a shield.`); } } } });
+A('pawn_purge', 'Pawn Purge', 'silver', ['Gamerule'], '🧹', 'You also win if your opponent has no pawns left while you still have at least three.',
+  { win(S, c) { return pieces(S, opp(c), 'p').length === 0 && pieces(S, c, 'p').length >= 3 ? 'Pawn purge' : null; } });
+A('honey_pot', 'Honey Pot', 'silver', ['Passive', 'Secret'], '🍯', 'One of your pawns is secretly a honey pot. Whatever captures it (unless it’s the king) is frozen for its owner’s next two turns. Revealed when it triggers.',
+  { order: 9, setup(S, c) { hideOnOwnPawn(S, c, 'hp', 'honey pot'); },
+    onEvent(S, c, a, ev) {
+      if (!ev.captured || ev.captured.hp !== c || ev.mover === c) return;
+      revealAug(S, c, 'honey_pot');
+      if (ev.piece.t !== 'k' && S.board[ev.to] === ev.piece) { trapFreeze(S, ev.piece); sfx(S, 'freeze'); log(S, `🍯 The ${PN[ev.piece.t]} on ${sqName(ev.to)} is stuck in the honey pot.`); }
+    } });
+
+/* ---------- Gold ---------- */
+A('camel_riders', 'Camel Riders', 'gold', ['Passive'], '🐪', 'Your knights can also leap like a camel: three squares one way and one square the other.',
+  { mod(s) { s.camel = true; } });
+A('ricochet', 'Ricochet', 'gold', ['Passive'], '🎱', 'Your bishops can bounce off the edge of the board once while moving diagonally.',
+  { mod(s) { s.ricochet = true; } });
+A('levy', 'Levy', 'gold', ['Active'], '📯', 'Twice per game, as your move, place a new pawn on any empty square of your 2nd or 3rd rank.',
+  { active: { uses: 2, targets(S, c, a, ctx) { const out = []; for (let i = 0; i < 64; i++) { const rr = rel(c, R(i)); if ((rr === 1 || rr === 2) && emptySq(S, ctx, i)) out.push({ sq: i, ops: [{ op: 'add', sq: i, t: 'p', c }] }); } return out; } } });
+A('transposition', 'Transposition', 'gold', ['Active'], '🔁', 'Once per game, as your move, swap one of your pieces with an enemy piece standing next to it. Neither can be a king.',
+  { active: { uses: 1, targets(S, c) {
+    const o = opp(c), out = [];
+    for (const i of pieces(S, c)) { const t = S.board[i].t; if (t === 'k') continue;
+      for (const [dr, df] of ALL8) { const r = R(i) + dr, f = F(i) + df; if (!on(r, f)) continue; const j = idx(r, f), q = S.board[j];
+        if (!q || q.c !== o || q.t === 'k') continue; if (!pawnDestOk(c, t, j) || !pawnDestOk(o, q.t, i)) continue;
+        out.push({ sq: i, to: j, ops: [{ op: 'swap', a: i, b: j }] }); } }
+    return out; } } });
+A('peasant_crown', 'Peasant Crown', 'gold', ['Drawback'], '🌾', 'Enemy pawns can only promote to knights.',
+  { mod(s, o) { o.promoOnly = 'n'; } });
+A('sanctuary', 'Sanctuary', 'gold', ['Passive'], '⛩️', 'Your pieces standing on your back rank can’t be captured. Your king can still be checked there.',
+  { mod(s) { s.sanctuary = true; } });
+A('conscription', 'Conscription', 'gold', ['Quest'], '📜', 'Quest: capture 4 enemy pawns. Reward: Legion — your pawns can capture one square in any direction.',
+  { quest: { goal: 4, prog: (S, c) => (S.stats[c].ct || {}).p || 0, reward(S, c) { grant(S, c, 'legion', 'Conscription'); } } });
+A('hidden_agenda', 'Hidden Agenda', 'gold', ['Gamerule', 'Secret'], '🗝️', 'You’re dealt one secret objective: destroy two enemy rooks, destroy two enemy bishops, land a knight on the enemy back rank, or give check with a pawn. Complete it and you win. Revealed when you win.',
+  { order: 9, setup(S, c, a) { a.d.obj = rnd(Object.keys(AGENDA)); log(S, `Your hidden agenda: ${AGENDA[a.d.obj]}.`, c); },
+    detail: (S, c, a) => (a.d.obj ? `Objective: ${AGENDA[a.d.obj]}.` : ''),
+    win(S, c, a) {
+      const o = opp(c), lost = t => S.lost[o].filter(x => x === t).length; let ok = false;
+      if (a.d.obj === 'rooks') ok = lost('r') >= 2;
+      else if (a.d.obj === 'bishops') ok = lost('b') >= 2;
+      else if (a.d.obj === 'knight') ok = pieces(S, c, 'n').some(i => rel(c, R(i)) === 7);
+      else if (a.d.obj === 'pawncheck') ok = pawnChecks(S, c);
+      return ok ? `Hidden agenda: ${AGENDA[a.d.obj]}` : null;
+    } });
+A('shove', 'Shove', 'gold', ['Active'], '💪', 'Twice per game, as your move, push an enemy piece (not the king) that stands next to one of your pieces one square in any direction onto an empty square.',
+  { active: { uses: 2, targets(S, c, a, ctx) {
+    const o = opp(c), out = [];
+    for (const j of pieces(S, o)) { const t = S.board[j].t; if (t === 'k') continue; let adj = false; const dests = [];
+      for (const [dr, df] of ALL8) { const r = R(j) + dr, f = F(j) + df; if (!on(r, f)) continue; const k = idx(r, f), q = S.board[k];
+        if (q && q.c === c) adj = true; if (emptySq(S, ctx, k) && pawnDestOk(o, t, k)) dests.push(k); }
+      if (adj) for (const k of dests) out.push({ sq: j, to: k, ops: [{ op: 'mv', from: j, to: k }] }); }
+    return out; } } });
+A('fatigue', 'Fatigue', 'gold', ['Drawback'], '🥱', 'Your opponent can’t move the same piece on two turns in a row (the king is exempt).',
+  { onEvent(S, c, a, ev) { if (ev.mover === opp(c) && !ev.blocked && ev.piece.t !== 'k' && S.board[ev.to] === ev.piece) { ev.piece.fzf = S.ply + 2; ev.piece.fz = S.ply + 2; ev.piece.fzk = 'tired'; } } });
+
+/* ---------- Prismatic ---------- */
+A('rewind', 'Rewind', 'prismatic', ['Active'], '⏪', 'Once per game, as a free action, put the board back the way it stood at the start of your previous turn, undoing your last move and your opponent’s reply. Clocks don’t rewind.',
+  { onTurn(S, c, a) { if (S.turn !== c) return; a.d.prev = a.d.cur || null; a.d.cur = JSON.stringify({ b: S.board, ep: S.ep, l: S.lost }); },
+    active: { uses: 1, free: true, canSave: true, targets(S, c, a) { return a.d.prev && !S.extra ? [{}] : []; },
+      apply(S, c, a) { const o = JSON.parse(a.d.prev); S.board = o.b; S.ep = o.ep; S.lost = o.l; S.last = null; a.d.cur = a.d.prev; a.d.prev = null; } } });
+A('hydra', 'Hydra', 'prismatic', ['Passive'], '🐉', 'Whenever one of your pieces other than a pawn is captured, two new pawns of yours rise on random empty squares of your 2nd rank.',
+  { onEvent(S, c, a, ev) {
+    if (!ev.captured || ev.captured.c !== c || ev.captured.t === 'p' || ev.captured.t === 'k') return;
+    const b = spawnPawns(S, c, 2, false); if (b.length) { sfx(S, 'summon'); log(S, `🐉 Two heads grow back: ${CN[c]} gains pawns on ${b.map(sqName).join(' and ')}.`); }
+  } });
+A('artillery', 'Artillery', 'prismatic', ['Active'], '🎯', 'Twice per game, as your move, one of your rooks or bishops destroys an enemy piece (not the king) it could capture, without moving.',
+  { active: { uses: 2, targets(S, c, a, ctx) {
+    const out = [];
+    for (const i of pieces(S, c)) { const p = S.board[i]; if ((p.t !== 'r' && p.t !== 'b') || isFrozen(S, p)) continue;
+      const ms = []; genPiece(ctx, S.board, i, p, ms);
+      for (const m of ms) if (m.cap != null && !m.ep && S.board[m.cap].t !== 'k') out.push({ sq: i, to: m.cap, ops: [{ op: 'rm', sq: m.cap }] }); }
+    return out; } } });
+A('mirror', 'Mirror', 'prismatic', ['Wildcard'], '🪞', 'Gain a copy of every augment your opponent chose openly. If there’s nothing to copy (a secret augment can’t be copied), gain a random Prismatic augment instead.',
+  { order: 8, setup(S, c, a) {
+    const o = opp(c), owned = new Set(S.augs[c].map(x => x.id)); let got = 0;
+    for (const x of S.augs[o].slice()) { const d = DEF[x.id]; if (d.secret || d.reward || d.tags.includes('Wildcard') || owned.has(x.id)) continue; grant(S, c, x.id, 'Mirror'); owned.add(x.id); got++; }
+    if (!got) grantRandom(S, c, 'prismatic', a, 1);
+  } });
+A('unstoppable', 'Unstoppable', 'prismatic', ['Passive'], '🗿', 'Your queens can only be captured by queens and kings.',
+  { mod(s) { s.queenGuard = true; } });
+A('evolution', 'Evolution', 'prismatic', ['Passive'], '🦋', 'Each time one of your pieces captures with a move, it evolves one step: pawn to knight, knight to bishop, bishop to rook, rook to queen.',
+  { onEvent(S, c, a, ev) {
+    if (ev.mover !== c || !ev.captured || ev.promoted || S.board[ev.to] !== ev.piece) return;
+    const nx = { p: 'n', n: 'b', b: 'r', r: 'q' }[ev.piece.t]; if (!nx) return;
+    log(S, `🦋 ${CN[c]}'s ${PN[ev.piece.t]} on ${sqName(ev.to)} evolves into a ${PN[nx]}.`); ev.piece.t = nx; sfx(S, 'promote');
+  } });
+A('checkered_flag', 'Checkered Flag', 'prismatic', ['Gamerule'], '🏁', 'You also win the moment three of your pieces stand on your opponent’s back rank at the same time.',
+  { win(S, c) { return pieces(S, c).filter(i => rel(c, R(i)) === 7).length >= 3 ? 'Checkered flag' : null; } });
+A('ceasefire', 'Ceasefire', 'prismatic', ['Drawback'], '🕊️', 'Your opponent can’t capture anything during their first 8 turns. They can still give check.',
+  { mod(s, o, a, S, c) { if (S.stats && S.stats[opp(c)].turns < 8) o.noCapture = true; } });
+A('warpath', 'Warpath', 'prismatic', ['Quest'], '🪓', 'Quest: capture at least one enemy pawn, knight, bishop, rook and queen. Reward: Momentum — every capture you make earns a bonus move that can’t capture.',
+  { quest: { goal: 5, prog: (S, c) => ['p', 'n', 'b', 'r', 'q'].filter(t => (S.stats[c].ct || {})[t]).length, reward(S, c) { grant(S, c, 'momentum', 'Warpath'); } } });
+A('assassin', 'Assassin', 'prismatic', ['Active', 'Secret'], '🥷', 'One of your pawns is secretly an assassin. Once per game, as your move, it strikes an enemy piece next to it (not the king) and takes its square. Revealed when used.',
+  { order: 9, setup(S, c) { hideOnOwnPawn(S, c, 'as', 'assassin'); },
+    active: { uses: 1, reveal: true, targets(S, c) {
+      const out = [], o = opp(c);
+      for (const i of pieces(S, c)) { if (S.board[i].as !== c) continue;
+        for (const [dr, df] of ALL8) { const r = R(i) + dr, f = F(i) + df; if (!on(r, f)) continue; const j = idx(r, f), q = S.board[j];
+          if (!q || q.c !== o || q.t === 'k' || !pawnDestOk(c, S.board[i].t, j)) continue;
+          out.push({ sq: i, to: j, ops: [{ op: 'rm', sq: j }, { op: 'mv', from: i, to: j }] }); } }
+      return out; } } });
+
+/* ---------- Quest rewards (never offered directly) ---------- */
+A('r_vanguard', 'Vanguard', 'silver', ['Passive'], '🗡', 'Your pawns can also capture one square straight ahead.',
+  { reward: true, mod(s) { s.pawnFwdCapture = true; } });
+A('r_haste3', "Crusader's Haste", 'prismatic', ['Active'], '💨', 'Three times per game, as a free action: this turn you make two moves. The second move can’t capture.',
+  { reward: true, active: hasteActive(3) });
+
+/* Who each augment applies to: 'self' (the chooser), 'opp' (the chooser's opponent) or 'both'. */
+const SCOPE_OVERRIDE = {
+  landmine: 'opp', snare: 'opp', freeze: 'opp', taunt: 'opp', sleeper_agent: 'opp', dead_mans_switch: 'opp', trojan_horse: 'opp',
+  honey_pot: 'opp', mind_control: 'opp', shove: 'opp', artillery: 'opp', spyglass: 'opp',
+  meteor: 'both', stonewall: 'both', transposition: 'both', rewind: 'both',
+};
+for (const d of AUGS) d.scope = SCOPE_OVERRIDE[d.id] || (d.tags.includes('Drawback') ? 'opp' : 'self');
+
+const Engine = { FILES, R, F, idx, on, opp, rel, sqName, CN, PN, TIERS, TIER_NAME, AUGS, DEF, pool, newMatch, hostAct, legalMoves, abilityActions,
+  inCheck, kingSq, clockLeft, premoveDests, clockFree, tickClock, profiles, mkCtx, isFrozen, hasAnyAction };
+if (typeof module !== 'undefined') module.exports = Engine;
+
+</script>
+<script>
+(function () {
+'use strict';
+const E = Engine;
+const { opp, CN, PN, DEF, AUGS, TIER_NAME, sqName, R, F, idx } = E;
+const GLYPH = { k: '\u265A', q: '\u265B', r: '\u265C', b: '\u265D', n: '\u265E', p: '\u265F' };
+const VS = '\uFE0E';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] };
+
+const App = { tierMode: 'random', mode: null, S: null, me: 'w', pc: null, dc: null, connected: false, lost: false, clientStart: 0, chat: [], name: '', peerName: '', minutes: 30 };
+const UI = { pre: null, psel: null, premoveOn: true, screen: null, sel: null, targ: null, promo: null, flip: false, autoFlip: true, tab: 'log', unread: 0, cache: { v: -1 }, lastOffers: {}, overShown: null, resignArm: 0, modal: null, codexTier: 'silver', codexTag: 'All' };
+
+/* ===================== Helpers ===================== */
+const isHost = () => App.mode === 'host' || App.mode === 'local';
+function viewer() { const S = App.S; if (App.mode === 'local') return S && S.phase === 'play' ? S.turn : 'w'; return App.me; }
+function acting() { return App.mode === 'local' ? App.S.turn : App.me; }
+function orientation() {
+  const S = App.S; let base = App.me;
+  if (App.mode === 'local') base = UI.autoFlip && S.phase === 'play' ? S.turn : 'w';
+  return UI.flip ? opp(base) : base;
+}
+function myTurn() { const S = App.S; return S && S.phase === 'play' && !S.result && S.turn === acting() && (App.mode !== 'guest' || App.connected); }
+function glyph(t, c, cls) { return `<span class="pc ${c} ${cls || ''}">${GLYPH[t]}${VS}</span>`; }
+function fmtClock(ms) {
+  ms = Math.max(0, ms);
+  if (ms < 10000) return (ms / 1000).toFixed(1);
+  const s = Math.ceil(ms / 1000), m = Math.floor(s / 60);
+  return m + ':' + String(s % 60).padStart(2, '0');
+}
+function elapsedNow() { const S = App.S; if (!S || !S.clock.run) return 0; return isHost() ? Date.now() - S.clock.start : performance.now() - App.clientStart; }
+function toast(t) { const el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => { el.hidden = true; }, 2600); }
+function cached(key, fn) {
+  const S = App.S; if (UI.cache.v !== S.v || UI.cache.S !== S) UI.cache = { v: S.v, S };
+  if (!(key in UI.cache)) UI.cache[key] = fn(); return UI.cache[key];
+}
+function myLegal() { if (!myTurn()) return []; return cached('legal', () => E.legalMoves(App.S, acting())); }
+function abilActs(ai) { if (!myTurn()) return []; return cached('ab' + ai, () => E.abilityActions(App.S, acting(), ai)); }
+function reasonText(r) {
+  if (!r) return '';
+  if (r.winner) return `${App.S.names[r.winner]} (${CN[r.winner]}) wins. ${r.reason}.`;
+  return `Draw. ${r.reason}.`;
+}
+function saveName() { const v = ($('#nameIn') && $('#nameIn').value.trim()) || ''; App.name = v; try { localStorage.setItem('ac_name', v); } catch (e) {} }
+
+
+/* ===================== Sound (synthesized with Web Audio, no files) ===================== */
+const Sfx = (() => {
+  let ctx = null, master = null, noiseBuf = null, vol = 0.6, muted = false;
+  try { const o = JSON.parse(localStorage.getItem('ac_sound') || '{}'); if (typeof o.vol === 'number') vol = o.vol; muted = !!o.muted; } catch (e) {}
+  const save = () => { try { localStorage.setItem('ac_sound', JSON.stringify({ vol, muted })); } catch (e) {} };
+  function ensure() {
+    if (ctx) return ctx;
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+    ctx = new AC(); master = ctx.createGain(); master.gain.value = muted ? 0 : vol;
+    const comp = ctx.createDynamicsCompressor(); master.connect(comp); comp.connect(ctx.destination);
+    noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 2), ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return ctx;
+  }
+  function env(g, t0, a, dur, peak) { g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t0 + a); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); }
+  function tone({ f = 440, f2 = 0, type = 'sine', t = 0, dur = 0.3, a = 0.005, g = 0.3 }) {
+    const t0 = ctx.currentTime + t, o = ctx.createOscillator(), gn = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t0); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+    env(gn, t0, a, dur, g); o.connect(gn); gn.connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+  }
+  function noise({ t = 0, dur = 0.2, g = 0.3, type = 'bandpass', f = 1000, f2 = 0, q = 1, a = 0.003 }) {
+    const t0 = ctx.currentTime + t, src = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), gn = ctx.createGain();
+    src.buffer = noiseBuf; fl.type = type; fl.Q.value = q; fl.frequency.setValueAtTime(f, t0); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
+    env(gn, t0, a, dur, g); src.connect(fl); fl.connect(gn); gn.connect(master); src.start(t0, Math.random() * 0.5); src.stop(t0 + dur + 0.05);
+  }
+  const tock = (t, p, g) => { noise({ t, dur: 0.07, g: g * 0.9, f: 1700 * p, q: 3 }); tone({ t, f: 220 * p, f2: 140 * p, type: 'triangle', dur: 0.09, g: g * 0.7 }); };
+  const arp = (fs, step, dur, g, type) => fs.forEach((f, i) => tone({ f, type: type || 'triangle', t: i * step, dur: i === fs.length - 1 ? dur * 2.5 : dur, g }));
+  const K = {
+    move() { tock(0, 1, 0.5); },
+    select() { noise({ dur: 0.03, g: 0.07, f: 3200, q: 2 }); },
+    capture() { tock(0, 0.85, 0.7); tock(0.05, 0.7, 0.5); noise({ t: 0.02, dur: 0.16, g: 0.2, type: 'lowpass', f: 600 }); },
+    castle() { tock(0, 1, 0.45); tock(0.12, 0.9, 0.5); },
+    check() { [880, 1320, 2210].forEach((f, i) => tone({ f, dur: 0.9 - i * 0.2, g: 0.18 / (i + 1), a: 0.002 })); },
+    promote() { arp([523, 659, 784, 1047], 0.07, 0.3, 0.16); },
+    shield() { [540, 1230, 2070, 2890].forEach((f, i) => tone({ f, dur: 0.55 - i * 0.08, g: 0.13, a: 0.001 })); noise({ dur: 0.08, g: 0.3, type: 'highpass', f: 2500 }); },
+    shieldup() { tone({ f: 600, f2: 1500, dur: 0.35, g: 0.12, type: 'triangle' }); tone({ f: 1500, t: 0.12, dur: 0.45, g: 0.08 }); },
+    ability() { tone({ f: 400, f2: 900, dur: 0.35, g: 0.15, type: 'triangle' }); tone({ f: 1200, t: 0.18, dur: 0.5, g: 0.08 }); },
+    boom() { noise({ dur: 1.1, g: 0.8, type: 'lowpass', f: 1500, f2: 60, q: 0.7, a: 0.005 }); tone({ f: 90, f2: 30, dur: 0.8, g: 0.6 }); },
+    freeze() { for (let i = 0; i < 6; i++) tone({ f: 2000 + Math.random() * 2200, t: i * 0.045, dur: 0.25, g: 0.07, a: 0.001 }); noise({ dur: 0.5, g: 0.08, type: 'highpass', f: 5000 }); },
+    blink() { tone({ f: 1400, f2: 250, dur: 0.18, g: 0.14 }); tone({ f: 250, f2: 1600, t: 0.16, dur: 0.2, g: 0.14 }); },
+    whoosh() { noise({ dur: 0.45, g: 0.35, f: 400, f2: 2600, q: 1.5, a: 0.12 }); },
+    flip() { tone({ f: 330, type: 'square', dur: 0.12, g: 0.05 }); tone({ f: 494, type: 'square', t: 0.1, dur: 0.12, g: 0.05 }); tone({ f: 392, type: 'square', t: 0.2, dur: 0.25, g: 0.05 }); },
+    summon() { tone({ f: 110, f2: 220, type: 'sawtooth', dur: 0.9, g: 0.06, a: 0.25 }); tone({ f: 165, f2: 330, type: 'triangle', dur: 0.9, g: 0.08, a: 0.25 }); },
+    wall() { tone({ f: 70, f2: 45, dur: 0.3, g: 0.5 }); noise({ dur: 0.5, g: 0.3, type: 'lowpass', f: 400, a: 0.02 }); },
+    dig() { noise({ dur: 0.12, g: 0.2, type: 'lowpass', f: 800 }); noise({ t: 0.15, dur: 0.12, g: 0.2, type: 'lowpass', f: 700 }); },
+    horn() { tone({ f: 233, type: 'sawtooth', dur: 0.5, g: 0.08, a: 0.03 }); tone({ f: 349, type: 'sawtooth', t: 0.12, dur: 0.45, g: 0.07, a: 0.03 }); },
+    storm() { for (let i = 0; i < 6; i++) tock(i * 0.05, 1 + Math.random() * 0.3, 0.35); },
+    phoenix() { noise({ dur: 0.9, g: 0.3, f: 300, f2: 4000, q: 0.8, a: 0.3 }); tone({ f: 300, f2: 1500, dur: 0.9, g: 0.12, type: 'triangle', a: 0.2 }); },
+    quest() { arp([523, 659, 784], 0.1, 0.3, 0.16); [523, 659, 784, 1047].forEach(f => tone({ f, type: 'triangle', t: 0.32, dur: 0.8, g: 0.08 })); },
+    reveal() { [440, 523, 622, 740].forEach((f, i) => tone({ f, t: i * 0.09, dur: 0.5, g: 0.1 })); },
+    deal() { noise({ dur: 0.06, g: 0.25, type: 'highpass', f: 2500 }); noise({ t: 0.05, dur: 0.08, g: 0.15, f: 1200 }); },
+    lock() { tock(0, 1.2, 0.4); tone({ f: 1047, t: 0.05, dur: 0.4, g: 0.08 }); },
+    start() { K.deal(); tone({ f: 392, t: 0.15, dur: 0.4, g: 0.12, type: 'triangle' }); tone({ f: 587, t: 0.28, dur: 0.7, g: 0.12, type: 'triangle' }); },
+    win() { arp([523, 659, 784, 1047], 0.12, 0.3, 0.18); },
+    lose() { arp([392, 349, 311, 262], 0.16, 0.35, 0.16); },
+    draw() { tone({ f: 440, type: 'triangle', dur: 0.35, g: 0.15 }); tone({ f: 440, t: 0.3, type: 'triangle', dur: 0.6, g: 0.12 }); },
+    notify() { tone({ f: 988, dur: 0.2, g: 0.1 }); tone({ f: 1319, t: 0.12, dur: 0.3, g: 0.1 }); },
+    tick() { noise({ dur: 0.025, g: 0.15, f: 4000, q: 4 }); },
+  };
+  return {
+    play(k, delay) {
+      if (muted || vol <= 0 || !K[k]) return; if (!ensure()) return; if (ctx.state === 'suspended') ctx.resume();
+      const run = () => { try { K[k](); } catch (e) {} };
+      if (delay) setTimeout(run, delay); else run();
+    },
+    unlock() { if (ensure() && ctx.state === 'suspended') ctx.resume(); },
+    get muted() { return muted; }, get vol() { return vol; },
+    setMuted(m) { muted = m; if (master) master.gain.value = muted ? 0 : vol; save(); },
+    setVol(v) { vol = v; if (master) master.gain.value = muted ? 0 : vol; save(); },
+  };
+})();
+function playCues() {
+  const S = App.S; if (!S) return;
+  if (UI.fxMid !== S.mid) { UI.fxMid = S.mid; UI.fxSeen = S.fxn || 0; return; }
+  const fresh = (S.fx || []).filter(x => x.n > UI.fxSeen); if (!fresh.length) return;
+  UI.fxSeen = S.fxn;
+  const me = App.mode === 'local' ? null : App.me; let d = 0;
+  for (const q of fresh.slice(-5)) {
+    if (q.v !== 'all' && me && q.v !== me) continue;
+    let k = q.k;
+    if (k === 'end') { const w = S.result && S.result.winner; k = !w ? 'draw' : (App.mode === 'local' || w === App.me) ? 'win' : 'lose'; }
+    Sfx.play(k, d); d += 110;
+  }
+}
+const SPEAKER = '<path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>';
+function renderSound() {
+  const b = $('#sndBtn'), r = $('#sndVol'); if (!b) return;
+  const off = Sfx.muted || Sfx.vol === 0;
+  b.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SPEAKER}${off ? '<path d="M17 9l5 6M22 9l-5 6"/>' : '<path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/>'}</svg>`;
+  b.setAttribute('aria-pressed', String(Sfx.muted)); b.setAttribute('aria-label', Sfx.muted ? 'Turn sound on' : 'Mute sound'); b.title = Sfx.muted ? 'Sound off' : 'Sound on';
+  r.value = Math.round(Sfx.vol * 100);
+}
+
+/* ===================== Networking ===================== */
+function b64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function unb64(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; const bin = atob(s); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+async function encodeDesc(desc) {
+  const json = JSON.stringify({ t: desc.type, s: desc.sdp });
+  try {
+    if (typeof CompressionStream !== 'undefined') {
+      const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return 'AC1.' + b64(new Uint8Array(await new Response(stream).arrayBuffer()));
+    }
+  } catch (e) {}
+  return 'AC0.' + b64(new TextEncoder().encode(json));
+}
+async function decodeDesc(code) {
+  code = (code || '').replace(/\s+/g, '');
+  const dot = code.indexOf('.');
+  if (dot < 0) throw new Error('That doesn’t look like a game code. Copy the whole code, including the “AC” at the start.');
+  const pre = code.slice(0, dot), data = code.slice(dot + 1);
+  let txt;
+  try {
+    const bytes = unb64(data);
+    if (pre === 'AC1') {
+      if (typeof DecompressionStream === 'undefined') throw new Error('old');
+      const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      txt = await new Response(s).text();
+    } else if (pre === 'AC0') txt = new TextDecoder().decode(bytes);
+    else throw new Error('prefix');
+    const o = JSON.parse(txt); return { type: o.t, sdp: o.s };
+  } catch (e) {
+    if (e.message === 'old') throw new Error('This browser can’t read compressed codes. Update the browser and try again.');
+    throw new Error('The code is incomplete or damaged. Copy it again in full and paste it here.');
+  }
+}
+function waitIce(pc, ms) {
+  return new Promise(res => {
+    if (pc.iceGatheringState === 'complete') return res();
+    let t;
+    const done = () => { clearTimeout(t); pc.removeEventListener('icegatheringstatechange', chk); pc.removeEventListener('icecandidate', cand); res(); };
+    const chk = () => { if (pc.iceGatheringState === 'complete') done(); };
+    const cand = e => { if (!e.candidate) done(); };
+    t = setTimeout(done, ms || 5000);
+    pc.addEventListener('icegatheringstatechange', chk); pc.addEventListener('icecandidate', cand);
+  });
+}
+function closePeer() { try { App.dc && App.dc.close(); } catch (e) {} try { App.pc && App.pc.close(); } catch (e) {} App.dc = null; App.pc = null; App.connected = false; App.lost = false; }
+function watchPc(pc) {
+  const onState = () => {
+    const s = pc.connectionState || pc.iceConnectionState;
+    if (s === 'failed') {
+      const msg = 'Connection failed. Without a relay server, some strict networks (corporate, some mobile carriers) block direct connections. Try a different network, or both use home Wi-Fi.';
+      setNetMsg(msg, true);
+      if (App.S) { App.lost = true; render(); }
+    }
+    renderStatus();
+  };
+  pc.addEventListener('connectionstatechange', onState);
+  pc.addEventListener('iceconnectionstatechange', onState);
+}
+function bindDc(dc) {
+  App.dc = dc;
+  dc.onopen = () => {
+    App.connected = true; App.lost = false;
+    send({ type: 'hello', name: App.name || (App.mode === 'host' ? 'Host' : 'Guest') });
+    if (App.mode === 'host' && !App.S) {
+      App.S = E.newMatch({ hostColor: Math.random() < 0.5 ? 'w' : 'b', minutes: App.minutes, tierMode: App.tierMode, hostName: App.name || 'Host', guestName: App.peerName || 'Guest' });
+      App.me = App.S.hostColor; sendState();
+    }
+    render();
+  };
+  dc.onclose = () => { if (App.connected) { App.connected = false; App.lost = true; toast('Your opponent disconnected.'); render(); } };
+  dc.onmessage = ev => {
+    let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+    if (m.type === 'hello') {
+      App.peerName = String(m.name || '').slice(0, 20);
+      if (App.mode === 'host' && App.S) { App.S.names[opp(App.S.hostColor)] = App.peerName || 'Guest'; App.S.v++; sendState(); render(); }
+    } else if (m.type === 'state' && App.mode === 'guest') {
+      App.S = m.S; App.me = opp(m.S.hostColor); App.clientStart = performance.now() - (m.el || 0); render();
+    } else if (m.type === 'act' && App.mode === 'host' && App.S) {
+      const c = opp(App.S.hostColor); App.S = E.hostAct(App.S, c, m.a); afterHost();
+    } else if (m.type === 'chat') {
+      App.chat.push({ from: String(m.from || '').slice(0, 20), text: String(m.text || '').slice(0, 300) });
+      if (UI.tab !== 'chat') UI.unread++;
+      Sfx.play('notify');
+      if (UI.screen === 'game') renderTabs();
+    }
+  };
+}
+function send(o) { if (App.dc && App.dc.readyState === 'open') { try { App.dc.send(JSON.stringify(o)); } catch (e) { console.error(e); } } }
+function sendState() {
+  const S = App.S; if (!S || App.mode !== 'host') return;
+  if (S.events.length > 80) S.events.splice(0, S.events.length - 80);
+  send({ type: 'state', S, el: S.clock.run ? Date.now() - S.clock.start : 0 });
+}
+async function hostCreate() {
+  closePeer(); App.mode = 'host'; App.S = null;
+  const pc = new RTCPeerConnection(ICE); App.pc = pc; watchPc(pc);
+  bindDc(pc.createDataChannel('augchess', { ordered: true }));
+  await pc.setLocalDescription(await pc.createOffer());
+  await waitIce(pc);
+  return encodeDesc(pc.localDescription);
+}
+async function hostAccept(code) {
+  const d = await decodeDesc(code);
+  if (d.type !== 'answer') throw new Error('That’s an invite code. Paste the reply code your opponent sent back.');
+  if (!App.pc) throw new Error('Create an invite first.');
+  await App.pc.setRemoteDescription(d);
+}
+async function guestJoin(code) {
+  const d = await decodeDesc(code);
+  if (d.type !== 'offer') throw new Error('That’s a reply code. Paste the invite code the host sent you.');
+  closePeer(); App.mode = 'guest'; App.S = null;
+  const pc = new RTCPeerConnection(ICE); App.pc = pc; watchPc(pc);
+  pc.ondatachannel = e => bindDc(e.channel);
+  await pc.setRemoteDescription(d);
+  await pc.setLocalDescription(await pc.createAnswer());
+  await waitIce(pc);
+  return encodeDesc(pc.localDescription);
+}
+function setNetMsg(t, err) { document.querySelectorAll('.netmsg.live').forEach(el => { el.textContent = t; el.classList.toggle('err', !!err); }); }
+
+/* ===================== Actions ===================== */
+function act(a) {
+  const S = App.S; if (!S) return;
+  if (isHost()) {
+    let c = App.me;
+    if (App.mode === 'local') { c = a.color || (S.phase === 'play' ? S.turn : 'w'); if (a.kind === 'draw' || a.kind === 'rematch') a.local = true; }
+    delete a.color;
+    App.S = E.hostAct(S, c, a); afterHost();
+  } else send({ type: 'act', a });
+}
+function afterHost() { if (App.mode === 'host') { App.me = App.S.hostColor; sendState(); } render(); }
+
+/* ===================== Rendering: shell ===================== */
+function renderStatus() {
+  const el = $('#netStatus'); let t = 'Not connected', cls = '';
+  if (App.mode === 'local') { t = 'Practice on one screen'; cls = 'ok'; }
+  else if (App.connected) { t = `Connected${App.peerName ? ' to ' + App.peerName : ''}`; cls = 'ok'; }
+  else if (App.lost) { t = 'Connection lost'; cls = 'bad'; }
+  else if (App.mode) t = 'Waiting for connection';
+  el.className = 'netstatus ' + cls; el.innerHTML = `<span class="dot"></span><span>${esc(t)}</span>`;
+}
+function render() {
+  renderStatus(); playCues();
+  const S = App.S;
+  const scr = !S ? 'lobby' : S.phase === 'select' ? 'select' : 'game';
+  if (scr !== UI.screen) {
+    UI.screen = scr; UI.sel = null; UI.targ = null; UI.promo = null;
+    const main = $('#app');
+    if (scr === 'lobby') mountLobby(main); else if (scr === 'select') main.innerHTML = '<section class="select" id="sel"></section>'; else mountGame(main);
+  }
+  if (scr === 'select') renderSelect();
+  if (scr === 'game') renderGame();
+  renderModal();
+  runPremove();
+}
+
+/* ---------- Scope badges ---------- */
+const SCOPE_ICON = {
+  self: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="4.6" r="2.9" fill="currentColor"/><path d="M2.4 15c.6-3.4 2.8-5.1 5.6-5.1s5 1.7 5.6 5.1z" fill="currentColor"/></svg>',
+  opp: '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.4" fill="currentColor"/></svg>',
+  both: '<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><circle cx="4.8" cy="4.8" r="2.3"/><circle cx="11.2" cy="4.8" r="2.3"/><path d="M.4 14.4c.4-2.8 2-4.3 4.4-4.3s4 1.5 4.4 4.3z"/><path d="M6.8 14.4c.4-2.8 2-4.3 4.4-4.3s4 1.5 4.4 4.3z"/></svg>',
+};
+/* mine = the viewer owns (or would own) this augment. Labels and text are from the viewer's side of the board. */
+function scopeInfo(d, mine) {
+  const s = d.scope, rule = d.tags.includes('Gamerule');
+  const target = s === 'both' ? 'both' : ((s === 'self') === mine ? 'you' : 'them');
+  const label = target === 'both' ? 'Both players' : target === 'you' ? 'You' : (mine ? 'Opponent' : 'Them');
+  let tip;
+  if (rule) tip = s === 'both' ? 'Win condition for both players: either of you can win this way.'
+    : target === 'you' ? 'Win condition for you only. Your opponent still has to checkmate you (or use their own augments).'
+    : 'Win condition for your opponent only. It doesn’t give you a new way to win.';
+  else if (target === 'both') tip = 'Affects both players: your pieces and your opponent’s alike.';
+  else if (mine) tip = target === 'you' ? 'Affects only you: your own pieces, clock or rules. Your opponent is unaffected.' : 'Affects only your opponent: their pieces, clock or rules. Your side is unaffected.';
+  else tip = target === 'you' ? 'Aimed at you: it changes your pieces, clock or rules.' : 'Affects only your opponent’s own side. Your pieces and rules are unchanged.';
+  return { target, label, tip, rule };
+}
+function scopeChip(d, mine) {
+  const x = scopeInfo(d, mine);
+  return `<span class="scope scope-${x.target}${x.rule ? ' rule' : ''}" tabindex="0" data-tip="${esc(x.tip)}" aria-label="${esc((x.rule ? 'Win condition. ' : 'Applies to ') + x.label + '. ' + x.tip)}">${SCOPE_ICON[x.target === 'you' ? 'self' : x.target === 'them' ? 'opp' : 'both']}<span>${x.rule ? 'Win: ' + (x.target === 'both' ? 'both players' : x.target === 'you' ? 'you only' : 'them only') : x.label}</span></span>`;
+}
+/* One floating tooltip for anything with data-tip, so it can escape cards that clip their overflow. */
+const Tip = (() => {
+  const el = document.createElement('div'); el.className = 'tip'; el.setAttribute('role', 'tooltip'); el.hidden = true; document.body.appendChild(el);
+  let cur = null;
+  function show(t) {
+    cur = t; el.textContent = t.dataset.tip; el.hidden = false;
+    const r = t.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
+    let x = r.left + r.width / 2 - w / 2; x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    let y = r.top - h - 8; if (y < 8) y = r.bottom + 8;
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+  }
+  function hide() { cur = null; el.hidden = true; }
+  document.addEventListener('pointerover', e => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t) show(t); });
+  document.addEventListener('pointerout', e => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t && !(e.relatedTarget && t.contains(e.relatedTarget))) hide(); });
+  document.addEventListener('focusin', e => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t) show(t); else hide(); });
+  document.addEventListener('focusout', () => hide());
+  document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-tip]'); if (t) { if (cur === t && !el.hidden) hide(); else show(t); } else hide(); }, true);
+  window.addEventListener('scroll', hide, true);
+  return { hide };
+})();
+
+/* ---------- Foil card ---------- */
+function foilCard(d, foot, extra) {
+  return `<article class="foil tier-${d.tier} ${extra || ''}">
+    <div class="foil-top"><span class="foil-tier">${TIER_NAME[d.tier]}</span><span class="foil-tags">${d.tags.map(t => `<span class="tag tag-${t.toLowerCase()}">${t}</span>`).join('')}</span></div>
+    <div class="foil-icon" aria-hidden="true">${d.icon}</div>
+    <h3 class="foil-name">${esc(d.name)}</h3>
+    <p class="foil-desc">${esc(d.desc)}</p>
+    <div class="foil-scope">${scopeChip(d, true)}</div>
+    ${foot ? `<div class="foil-foot">${foot}</div>` : ''}
+  </article>`;
+}
+
+const TIER_BLURB = { silver: 'Small nudges.', gold: 'Real rule changes.', prismatic: 'The game changes shape.' };
+function foilBack(tier, t) {
+  return `<article class="foil tier-${tier} back"><div class="foil-top"><span class="foil-tier">${TIER_NAME[tier]}</span></div>
+    <div class="back-mark" aria-hidden="true">${GLYPH[t]}${VS}</div><p class="foil-desc">${TIER_BLURB[tier]}</p></article>`;
+}
+/* ===================== Lobby ===================== */
+function minuteOptions(id) { return `<select id="${id}">${[3, 5, 10, 15, 20, 30, 45, 60, 90].map(m => `<option value="${m}" ${m === 30 ? 'selected' : ''}>${m} minutes</option>`).join('')}</select>`; }
+function tierPicker(id) {
+  let cur = 'random'; try { cur = localStorage.getItem('ac_tier') || 'random'; } catch (e) {}
+  const opts = [['random', 'Random']].concat(E.TIERS.map(t => [t, TIER_NAME[t]]));
+  return `<fieldset class="seg" id="${id}"><legend>Augment tier</legend>${opts.map(([v, l]) =>
+    `<label class="seg-opt seg-${v}"><input type="radio" name="${id}" value="${v}" ${v === cur ? 'checked' : ''}><span>${l}</span></label>`).join('')}</fieldset>`;
+}
+function readTier(id) {
+  const el = document.querySelector(`#${id} input:checked`); const v = el ? el.value : 'random';
+  try { localStorage.setItem('ac_tier', v); } catch (e) {}
+  return v;
+}
+function mountLobby(main) {
+  let nm = ''; try { nm = localStorage.getItem('ac_name') || ''; } catch (e) {}
+  main.innerHTML = `<section class="lobby">
+    <div class="hero">
+      <div class="fan" aria-hidden="true">${foilBack('silver', 'n')}${foilBack('gold', 'r')}${foilBack('prismatic', 'q')}</div>
+      <div class="hero-copy">
+        <h1>Augmented Chess</h1>
+        <p class="lede">Before the first move, each player takes one augment. Silver bends a rule. Gold breaks one. Prismatic rewrites the board.</p>
+        <p class="fine">Played directly between two browsers with no server in the middle. You connect by trading two codes over any chat app.</p>
+        <button class="btn browse" data-act="codex">Browse all ${AUGS.filter(d => !d.reward).length} augments</button>
+        <p class="fine small">The list is only available here. Once a game starts, you’ll only see the augments you’re offered or face.</p>
+      </div>
+    </div>
+    <div class="entry">
+      <label class="field">Your name<input type="text" id="nameIn" maxlength="20" value="${esc(nm)}" placeholder="Shown to your opponent"></label>
+      <div class="ways">
+        <div class="way">
+          <h2>Host a game</h2>
+          <p>Create an invite code and send it to your opponent.</p>
+          <label class="field">Clock per player${minuteOptions('minHost')}</label>
+          ${tierPicker('tierHost')}
+          <button class="btn primary" data-act="host">Create invite</button>
+          <div class="step" id="hostStep"></div>
+        </div>
+        <div class="way">
+          <h2>Join a game</h2>
+          <p>Paste the invite code your opponent sent you.</p>
+          <textarea id="inviteIn" placeholder="Paste invite code" aria-label="Invite code"></textarea>
+          <button class="btn primary" data-act="join">Create reply code</button>
+          <div class="step" id="joinStep"></div>
+        </div>
+        <div class="way">
+          <h2>Practice on one screen</h2>
+          <p>Play both sides to try out augments. Each side’s secrets are hidden while the other side is moving.</p>
+          <label class="field">Clock per player${minuteOptions('minLocal')}</label>
+          ${tierPicker('tierLocal')}
+          <button class="btn" data-act="local">Start practice</button>
+        </div>
+      </div>
+    </div>
+  </section>`;
+}
+const H = {};
+H.host = async btn => {
+  saveName(); App.minutes = +$('#minHost').value; App.tierMode = readTier('tierHost'); btn.disabled = true;
+  const step = $('#hostStep');
+  step.innerHTML = '<p class="netmsg live">Gathering connection details. This takes a few seconds.</p>';
+  try {
+    const code = await hostCreate();
+    step.innerHTML = `<label class="steplabel" for="offerOut">1. Send this invite code to your opponent</label>
+      <textarea id="offerOut" readonly>${esc(code)}</textarea>
+      <button class="btn" data-act="copy" data-target="offerOut">Copy invite</button>
+      <label class="steplabel" for="answerIn">2. Paste the reply code they send back</label>
+      <textarea id="answerIn" placeholder="Paste reply code"></textarea>
+      <button class="btn primary" data-act="connect">Connect</button>
+      <p class="netmsg live"></p>`;
+  } catch (e) { step.innerHTML = `<p class="netmsg live err">Couldn’t create an invite: ${esc(e.message)}</p>`; }
+  btn.disabled = false; btn.textContent = 'Create a new invite';
+};
+H.connect = async btn => {
+  btn.disabled = true; setNetMsg('Connecting…');
+  try { await hostAccept($('#answerIn').value); setNetMsg('Connecting… the game starts as soon as the link is up.'); }
+  catch (e) { setNetMsg(e.message, true); btn.disabled = false; }
+};
+H.join = async btn => {
+  saveName(); btn.disabled = true;
+  const step = $('#joinStep');
+  step.innerHTML = '<p class="netmsg live">Reading invite and gathering connection details…</p>';
+  try {
+    const code = await guestJoin($('#inviteIn').value);
+    step.innerHTML = `<label class="steplabel" for="replyOut">Send this reply code back to the host</label>
+      <textarea id="replyOut" readonly>${esc(code)}</textarea>
+      <button class="btn" data-act="copy" data-target="replyOut">Copy reply</button>
+      <p class="netmsg live">Waiting for the host to paste your reply…</p>`;
+  } catch (e) { step.innerHTML = `<p class="netmsg live err">${esc(e.message)}</p>`; }
+  btn.disabled = false;
+};
+H.local = () => {
+  saveName(); closePeer(); App.mode = 'local';
+  App.S = E.newMatch({ hostColor: 'w', minutes: +$('#minLocal').value, tierMode: readTier('tierLocal'), hostName: App.name || 'Player one', guestName: 'Player two' });
+  App.me = 'w'; App.chat = []; render();
+};
+H.copy = async btn => {
+  const ta = document.getElementById(btn.dataset.target); if (!ta) return;
+  let ok = false;
+  try { await navigator.clipboard.writeText(ta.value); ok = true; } catch (e) {}
+  if (!ok) { ta.focus(); ta.select(); try { ok = document.execCommand('copy'); } catch (e) {} }
+  const old = btn.textContent; btn.textContent = ok ? 'Copied' : 'Select the text and copy it manually';
+  setTimeout(() => { btn.textContent = old; }, 1800);
+};
+
+/* ===================== Selection ===================== */
+function tierSource(S) {
+  if (!S.tierMode || S.tierMode === 'random') return 'Tier drawn at random.';
+  if (App.mode === 'local') return 'Tier set for this practice game.';
+  return App.mode === 'host' ? 'Tier set by you.' : `Tier set by ${esc(S.names[S.hostColor])}.`;
+}
+function renderSelect() {
+  const S = App.S, el = $('#sel');
+  const colors = App.mode === 'local' ? ['w', 'b'] : [App.me];
+  let rows = '';
+  for (const c of colors) {
+    const picked = S.picks[c];
+    const cards = S.offers[c].map((o, slot) => {
+      const d = DEF[o.id], key = c + slot, changed = UI.lastOffers[key] !== o.id;
+      UI.lastOffers[key] = o.id;
+      const foot = picked == null
+        ? `<button class="btn" data-act="reroll" data-slot="${slot}" data-color="${c}" ${o.rr ? 'disabled' : ''}>${o.rr ? 'Rerolled' : 'Reroll'}</button><button class="btn primary" data-act="pick" data-slot="${slot}" data-color="${c}">Choose</button>`
+        : (picked === slot ? '<strong>Chosen</strong>' : '');
+      return foilCard(d, foot, (picked === slot ? 'chosen ' : '') + (changed ? 'deal' : ''));
+    }).join('');
+    const head = App.mode === 'local' ? `<h2>${CN[c]}: ${esc(S.names[c])}</h2>` : `<h2>You play ${CN[c]}</h2>`;
+    rows += `<div class="offer-row">${head}<div class="offers ${picked != null ? 'locked' : ''}">${cards}</div></div>`;
+  }
+  let wait = '';
+  if (App.mode !== 'local') {
+    const o = opp(App.me), oppName = esc(S.names[o]);
+    if (!App.connected) wait = 'Connection lost. Reload the page and trade new codes to play again.';
+    else if (S.picks[App.me] != null) wait = S.picks[o] != null ? 'Starting…' : `Locked in. Waiting for ${oppName} to choose…`;
+    else wait = S.picks[o] != null ? `${oppName} has locked in an augment.` : `${oppName} is choosing too.`;
+  } else if (S.picks.w != null && S.picks.b == null) wait = 'White has locked in. Black, choose your augment.';
+  el.innerHTML = `<header class="select-head"><div class="emblem tier-${S.tier}" aria-hidden="true"></div>
+      <div><h1>${TIER_NAME[S.tier]} augments</h1><p>${tierSource(S)} Both players draw from the ${TIER_NAME[S.tier].toLowerCase()} pool. Each card can be rerolled once. Choose one to keep.</p></div></header>
+    ${rows}<p class="waiting">${wait}</p>
+    <p class="waiting">Clock: ${S.minutes} minutes each.</p>`;
+}
+H.reroll = b => act({ kind: 'reroll', slot: +b.dataset.slot, color: b.dataset.color });
+H.pick = b => act({ kind: 'pick', slot: +b.dataset.slot, color: b.dataset.color });
+
+/* ===================== Game ===================== */
+function mountGame(main) {
+  main.innerHTML = `<section class="game">
+    <div class="boardcol">
+      <div class="pbar" id="barTop"></div>
+      <div class="boardwrap"><div class="board" id="board" role="grid" aria-label="Chess board"></div></div>
+      <div class="pbar" id="barBot"></div>
+      <div class="banner" id="banner" role="status" aria-live="polite"></div>
+    </div>
+    <aside class="side">
+      <div class="panel" id="augsMe"></div>
+      <div class="panel" id="augsOpp"></div>
+      <div class="panel">
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div class="tabbody" id="tabBody"></div>
+        <div class="chatrow" id="chatRow"><input type="text" id="chatIn" maxlength="300" placeholder="Message your opponent" aria-label="Chat message"><button class="btn small" data-act="chat">Send</button></div>
+      </div>
+      <div class="controls" id="controls"></div>
+    </aside>
+  </section>`;
+  const board = $('#board');
+  const ro = new ResizeObserver(() => {
+    const w = board.clientWidth; document.documentElement.style.setProperty('--sq', (w / 8) + 'px');
+    document.documentElement.style.setProperty('--bw', board.offsetWidth + 'px');
+  });
+  ro.observe(board);
+  board.addEventListener('mouseover', e => {
+    const t = e.target.closest('.sq'); if (!UI.targ) return;
+    board.querySelectorAll('.sq.area').forEach(s => s.classList.remove('area'));
+    if (!t) return; const i = +t.dataset.sq;
+    const a = UI.targ.acts.find(x => x.sq === i && x.area);
+    if (a) a.area.forEach(j => { const s = board.querySelector(`[data-sq="${j}"]`); if (s) s.classList.add('area'); });
+  });
+  $('#chatIn').addEventListener('keydown', e => { if (e.key === 'Enter') H.chat(); });
+  board.addEventListener('contextmenu', e => { if (UI.pre || UI.psel != null) { e.preventDefault(); cancelPremove(); render(); } });
+}
+function renderGame() {
+  const S = App.S;
+  if (UI.targ && !myTurn()) UI.targ = null;
+  if (UI.sel != null && !myTurn()) UI.sel = null;
+  if (UI.psel != null && !canPremove()) UI.psel = null;
+  if (UI.pre && (S.phase !== 'play' || App.mode === 'local' || !UI.premoveOn)) UI.pre = null;
+  renderBoard(); renderBars(); renderBanner(); renderAugs(); renderTabs(); renderControls(); updateClocks();
+}
+function targStage() {
+  const T = UI.targ; if (!T) return null;
+  const rem = T.acts.filter(x => (T.pick == null || x.pick === T.pick) && (T.sq == null || x.sq === T.sq) && (T.to == null || x.to === T.to));
+  if (T.pick == null && rem.some(x => x.pick != null)) return { stage: 'pick', rem, picks: [...new Set(rem.map(x => x.pick))] };
+  if (T.sq == null && rem.some(x => x.sq != null)) return { stage: 'sq', rem, squares: new Set(rem.map(x => x.sq)) };
+  if (T.to == null && rem.some(x => x.to != null)) return { stage: 'to', rem, squares: new Set(rem.map(x => x.to)) };
+  return { stage: 'done', rem };
+}
+function advanceTarg() {
+  const st = targStage();
+  if (st && st.stage === 'done') {
+    const x = st.rem[0], ai = UI.targ.ai; UI.targ = null;
+    if (x) act({ kind: 'ability', ai, spec: { pick: x.pick == null ? null : x.pick, sq: x.sq == null ? null : x.sq, to: x.to == null ? null : x.to } });
+    else render();
+    return;
+  }
+  render();
+}
+function renderBoard() {
+  const S = App.S, v = viewer(), over = S.phase === 'over', or = orientation();
+  const legal = myLegal();
+  const selMoves = UI.sel != null ? legal.filter(m => m.from === UI.sel) : [];
+  const preDots = UI.psel != null ? premoveDestsFor(UI.psel) : null;
+  const moveTo = new Map(selMoves.map(m => [m.to, m]));
+  const st = targStage();
+  const tsq = st && (st.stage === 'sq' || st.stage === 'to') ? st.squares : null;
+  const checks = new Set();
+  if (S.phase === 'play') for (const c of ['w', 'b']) if (E.inCheck(S, c)) checks.add(E.kingSq(S.board, c));
+  const walls = new Set(S.marks.filter(m => m.k === 'wall' && S.ply <= m.until).map(m => m.sq));
+  const seen = (owner, id) => owner === v || over || S.augs[owner].some(a => a.id === id && a.rev);
+  const traps = new Map(S.marks.filter(m => (m.k === 'mine' || m.k === 'snare') && seen(m.o, m.src || 'landmine')).map(m => [m.sq, m.k]));
+  let h = '';
+  for (let vr = 0; vr < 8; vr++) for (let vf = 0; vf < 8; vf++) {
+    const r = or === 'w' ? 7 - vr : vr, f = or === 'w' ? vf : 7 - vf, i = idx(r, f);
+    const p = S.board[i];
+    const cls = ['sq', (r + f) % 2 === 0 ? 'd' : 'l'];
+    if (S.last && (S.last.from === i || S.last.to === i)) cls.push('last');
+    if (UI.sel === i || (UI.targ && UI.targ.sq === i)) cls.push('selected');
+    if (UI.psel === i) cls.push('presel');
+    if (UI.pre && (UI.pre.from === i || UI.pre.to === i)) cls.push('pre');
+    if (checks.has(i)) cls.push('check');
+    let inner = '';
+    if (vf === 0) inner += `<span class="coord rk">${r + 1}</span>`;
+    if (vr === 7) inner += `<span class="coord fl">${E.FILES[f]}</span>`;
+    if (walls.has(i)) inner += '<span class="wall"></span>';
+    if (traps.has(i)) inner += `<span class="mine">${traps.get(i) === 'snare' ? '🕸️' : '💣'}</span>`;
+    let label = sqName(i);
+    if (p) {
+      const frozen = E.isFrozen(S, p);
+      inner += glyph(p.t, p.c, frozen ? 'frozen' : '');
+      label += ` ${CN[p.c]} ${PN[p.t]}`;
+      if (p.sh > 0 && (!p.shS || p.c === v || over)) { inner += `<span class="badge tr" title="Shield">🛡️</span>`; label += ', shielded'; }
+      if (frozen) { const tired = p.fzk === 'tired'; inner += `<span class="badge tl" title="${tired ? 'Fatigued: can’t move this turn' : 'Frozen'}">${tired ? '💤' : '❄️'}</span>`; label += tired ? ', fatigued' : ', frozen'; }
+      const hid = [['sl', 'sleeper_agent', '🕵️', 'Sleeper agent'], ['tro', 'trojan_horse', '🎠', 'Trojan Horse'], ['hp', 'honey_pot', '🍯', 'Honey pot'], ['as', 'assassin', '🥷', 'Assassin']]
+        .filter(([k, id]) => p[k] && seen(p[k], id));
+      hid.slice(0, 2).forEach(([k, id, ic, nm], n) => { inner += `<span class="badge ${n ? 'br' : 'bl'}" title="${nm}">${ic}</span>`; label += `, ${nm.toLowerCase()}`; });
+    }
+    if (moveTo.has(i)) inner += p || moveTo.get(i).ep ? '<span class="ring"></span>' : '<span class="dot"></span>';
+    if (tsq && tsq.has(i)) inner += '<span class="tgt"></span>';
+    if (preDots && preDots.has(i)) inner += '<span class="predot"></span>';
+    h += `<button class="${cls.join(' ')}" data-act="sq" data-sq="${i}" aria-label="${esc(label)}">${inner}</button>`;
+  }
+  $('#board').innerHTML = h;
+}
+function renderBars() {
+  const S = App.S, or = orientation(), v = viewer();
+  const bar = c => {
+    const taken = S.lost[opp(c)].map(t => GLYPH[t] + VS).join('');
+    const you = App.mode !== 'local' && c === App.me ? ' <span class="you">(you)</span>' : '';
+    return `<span class="sw ${c}" aria-hidden="true"></span><span class="who">${esc(S.names[c])}${you}</span>
+      <span class="taken" title="Pieces taken">${taken}</span><span class="clock" id="clk-${c}"></span>`;
+  };
+  $('#barTop').innerHTML = bar(opp(or)); $('#barBot').innerHTML = bar(or);
+}
+function updateClocks() {
+  const S = App.S; if (!S || UI.screen !== 'game') return;
+  const P = E.profiles(S), el = elapsedNow();
+  for (const c of ['w', 'b']) {
+    const node = document.getElementById('clk-' + c); if (!node) continue;
+    const ms = E.clockLeft(S, c, el), running = S.clock.run && S.turn === c && S.phase === 'play';
+    const free = running && E.clockFree(S, c, P);
+    node.className = 'clock' + (running ? ' run' : '') + (ms < 60000 ? ' low' : '');
+    node.innerHTML = fmtClock(ms) + (free ? '<span class="free">paused</span>' : '');
+    if (running && !free && ms > 0 && ms < 10000 && (App.mode === 'local' || c === App.me)) { const sec = Math.ceil(ms / 1000); if (UI.lastTick !== sec) { UI.lastTick = sec; Sfx.play('tick'); } }
+  }
+}
+function renderBanner() {
+  const S = App.S, el = $('#banner'), me = acting();
+  let h = '', cls = 'banner';
+  const st = targStage();
+  if (S.phase === 'over') {
+    cls += ' hot';
+    const rm = S.rematch || {};
+    let rbtn = '<button class="btn primary" data-act="rematch">Rematch</button>';
+    if (App.mode !== 'local') {
+      if (!App.connected) rbtn = '';
+      else if (rm[App.me]) rbtn = `<span>Waiting for ${esc(S.names[opp(App.me)])} to accept…</span>`;
+      else if (rm[opp(App.me)]) rbtn = '<button class="btn primary" data-act="rematch">Accept rematch</button>';
+    }
+    h = `<span class="msg"><strong>${esc(reasonText(S.result))}</strong></span>${rbtn}<button class="btn" data-act="leave">Leave</button>`;
+  } else if (App.mode !== 'local' && App.lost) {
+    cls += ' alert'; h = `<span class="msg">Connection lost. This game can’t continue. Trade new codes to start another.</span><button class="btn" data-act="leave">Back to start</button>`;
+  } else if (st) {
+    cls += ' hot';
+    const d = DEF[S.augs[me][UI.targ.ai].id];
+    let prompt = 'Choose a highlighted square.';
+    if (st.stage === 'pick') prompt = 'Choose one:';
+    else if (st.stage === 'to') prompt = 'Now choose where it goes.';
+    h = `<span class="msg"><strong>${esc(d.name)}.</strong> ${prompt}</span>`;
+    if (st.stage === 'pick') h += `<span class="picks">${st.picks.map(p => `<button class="btn small" data-act="tpick" data-pick="${esc(p)}">${esc(p)}</button>`).join('')}</span>`;
+    h += '<button class="btn small ghost" data-act="tcancel">Cancel</button>';
+  } else if (S.drawOffer && S.drawOffer !== me && App.mode !== 'local') {
+    cls += ' hot';
+    h = `<span class="msg">${esc(S.names[S.drawOffer])} offers a draw.</span><button class="btn primary" data-act="draw">Accept draw</button><button class="btn" data-act="declineDraw">Decline</button>`;
+  } else if (myTurn()) {
+    const bits = [App.mode === 'local' ? `${CN[S.turn]} to move.` : 'Your move.'];
+    if (E.inCheck(S, me)) { bits.push('You’re in check.'); cls += ' alert'; } else cls += ' hot';
+    if (S.extra && S.extra.color === me) bits.push('Bonus move: no captures.');
+    if (S.taunt && S.taunt.color === me && S.taunt.ply === S.ply) bits.push(`Taunted: move a ${PN[S.taunt.type]} if you can.`);
+    if (S.haste && S.haste.color === me) bits.push('Haste is active: you’ll get a second move.');
+    if (S.drawOffer === me) bits.push('Draw offered.');
+    h = `<span class="msg">${bits.join(' ')}</span>`;
+  } else {
+    const o = S.turn;
+    let pre = '';
+    if (UI.pre) pre = ` Pre-move queued: ${sqName(UI.pre.from)} to ${sqName(UI.pre.to)}${UI.pre.promo ? ` (${PN[UI.pre.promo].toLowerCase()})` : ''}. It plays the moment your turn starts, if it’s still legal.`;
+    else if (canPremove()) pre = ' You can queue a pre-move.';
+    h = `<span class="msg">Waiting for ${esc(S.names[o])} (${CN[o]})…${S.drawOffer === App.me ? ' Your draw offer is pending.' : ''}${pre}</span>`;
+    if (UI.pre) { h += '<button class="btn small ghost" data-act="cancelPremove">Cancel pre-move</button>'; cls += ' pre'; }
+  }
+  el.className = cls; el.innerHTML = h;
+}
+function augRow(c, a, ai, mine) {
+  const S = App.S, d = DEF[a.id], over = S.phase === 'over';
+  const hidden = d.secret && !a.rev && !mine && !over;
+  if (hidden) return `<div class="aug tier-${d.tier} hiddenaug"><span class="ic">?</span><div class="nm">Secret augment <span class="tag tag-secret">${TIER_NAME[d.tier]}</span></div><p class="d">Hidden until it triggers.</p></div>`;
+  let meta = '';
+  if (d.quest) {
+    const pr = Math.min(d.quest.goal, (d.quest.prog(S, c, a) || 0));
+    meta += a.done ? '<span class="done">Quest complete</span>' : `<span class="qbar" aria-hidden="true"><i style="width:${(pr / d.quest.goal) * 100}%"></i></span><span>${pr} / ${d.quest.goal}</span>`;
+  }
+  if (d.active) {
+    meta += `<span>${a.uses} ${a.uses === 1 ? 'use' : 'uses'} left${d.active.free ? ', free action' : ', takes your move'}</span>`;
+    if (mine && a.uses > 0 && S.phase === 'play') {
+      const n = abilActs(ai).length;
+      const on = UI.targ && UI.targ.ai === ai;
+      meta += `<button class="btn small ${on ? 'primary' : ''}" data-act="use" data-ai="${ai}" ${n && !App.lost ? '' : 'disabled'} title="${n ? '' : 'Not available right now'}">${on ? 'Cancel' : 'Use'}</button>`;
+    }
+  }
+  if (d.detail && (mine || a.rev || over)) { const t = d.detail(S, c, a); if (t) meta += `<span>${esc(t)}</span>`; }
+  if (a.src) meta += `<span>From ${esc(a.src)}</span>`;
+  if (d.secret && !a.rev && mine) meta += '<span>Hidden from your opponent</span>';
+  const tags = d.tags.map(t => `<span class="tag tag-${t.toLowerCase()}">${t}</span>`).join('');
+  return `<div class="aug tier-${d.tier} ${d.active && a.uses <= 0 ? 'used' : ''}"><span class="ic" aria-hidden="true">${d.icon}</span>
+    <div class="nm">${esc(d.name)} ${tags} ${scopeChip(d, mine)}</div><p class="d">${esc(d.desc)}</p>${meta ? `<div class="meta">${meta}</div>` : ''}</div>`;
+}
+function renderAugs() {
+  const S = App.S, v = viewer(), o = opp(v);
+  const title = c => App.mode === 'local' ? `${CN[c]}’s augments` : (c === App.me ? 'Your augments' : `${esc(S.names[c])}’s augments`);
+  $('#augsMe').innerHTML = `<h2>${title(v)} <small>${TIER_NAME[S.tier]} draft${S.tierMode && S.tierMode !== 'random' ? ' (set)' : ''}</small></h2>` + S.augs[v].map((a, ai) => augRow(v, a, ai, true)).join('');
+  $('#augsOpp').innerHTML = `<h2>${title(o)}</h2>` + S.augs[o].map((a, ai) => augRow(o, a, ai, false)).join('');
+}
+function renderTabs() {
+  const S = App.S; if (!S) return;
+  const tabs = [['log', 'Game log'], ['moves', 'Moves']];
+  if (App.mode !== 'local') tabs.push(['chat', UI.unread ? `Chat (${UI.unread})` : 'Chat']);
+  if (!tabs.some(t => t[0] === UI.tab)) UI.tab = 'log';
+  $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${UI.tab === k}" data-act="tab" data-tab="${k}">${l}</button>`).join('');
+  const body = $('#tabBody'), v = viewer();
+  $('#chatRow').hidden = UI.tab !== 'chat';
+  if (UI.tab === 'log') {
+    const evs = S.events.filter(e => e.v === 'all' || e.v === v);
+    body.innerHTML = evs.length ? evs.map(e => `<p class="ev ${e.v !== 'all' ? 'priv' : ''}">${esc(e.t)}</p>`).join('') : '<p class="ev">Nothing yet.</p>';
+  } else if (UI.tab === 'moves') {
+    const rows = []; let cur = null;
+    for (const e of S.log) { if (!cur || (e.c === 'w' && cur.b.length)) { cur = { w: [], b: [] }; rows.push(cur); } cur[e.c].push(e.s); }
+    body.innerHTML = rows.length ? rows.map((r, i) => `<div class="mvrow"><span>${i + 1}.</span><span>${esc(r.w.join(' '))}</span><span>${esc(r.b.join(' '))}</span></div>`).join('') : '<p class="ev">No moves yet.</p>';
+  } else {
+    UI.unread = 0;
+    body.innerHTML = App.chat.length ? App.chat.map(m => `<p class="ev chatmsg"><b>${esc(m.from)}:</b> ${esc(m.text)}</p>`).join('') : '<p class="ev">Say hello.</p>';
+  }
+  body.scrollTop = body.scrollHeight;
+}
+function renderControls() {
+  const S = App.S, play = S.phase === 'play' && !App.lost;
+  let h = '';
+  if (play) {
+    if (App.mode === 'local') h += '<button class="btn" data-act="draw">Agree to a draw</button>';
+    else h += `<button class="btn" data-act="draw" ${S.drawOffer ? 'disabled' : ''}>Offer draw</button>`;
+    const armed = Date.now() - UI.resignArm < 3000;
+    h += `<button class="btn danger" data-act="resign">${armed ? 'Click again to resign' : (App.mode === 'local' ? `Resign for ${CN[S.turn]}` : 'Resign')}</button>`;
+  }
+  h += '<button class="btn" data-act="flip">Flip board</button>';
+  if (App.mode !== 'local') h += `<label><input type="checkbox" data-act="premoveToggle" ${UI.premoveOn ? 'checked' : ''}> Pre-moves</label>`;
+  if (App.mode === 'local') h += `<label><input type="checkbox" data-act="autoflip" ${UI.autoFlip ? 'checked' : ''}> Turn board each move</label>`;
+  $('#controls').innerHTML = h;
+}
+
+/* ---------- Pre-moves (online games only) ---------- */
+try { UI.premoveOn = localStorage.getItem('ac_premove') !== 'off'; } catch (e) {}
+function canPremove() {
+  const S = App.S;
+  return UI.premoveOn && App.mode !== 'local' && App.connected && S && S.phase === 'play' && !S.result && S.turn !== App.me;
+}
+function premoveDestsFor(i) { return cached('pd' + i, () => new Set(E.premoveDests(App.S, i))); }
+function cancelPremove(note) { const had = UI.pre || UI.psel != null; UI.pre = null; UI.psel = null; if (had && note) toast(note); return had; }
+function queuePremove(from, to, promo) {
+  const p = App.S.board[from]; if (!p) return;
+  UI.pre = { from, to, id: p.id, promo: promo || null }; UI.psel = null; Sfx.play('select');
+}
+function premoveClick(i) {
+  const S = App.S, p = S.board[i];
+  if (UI.pre && i === UI.pre.from) { cancelPremove(); return render(); }
+  if (UI.psel != null && premoveDestsFor(UI.psel).has(i)) {
+    const from = UI.psel, pc = S.board[from], P = E.profiles(S)[App.me];
+    if (pc.t === 'p' && E.rel(pc.c, R(i)) >= P.promoRel) {
+      if (P.promoOnly) queuePremove(from, i, P.promoOnly);
+      else { UI.promo = { from, to: i, c: App.me, pre: true }; UI.modal = 'promo'; UI.psel = null; }
+    } else queuePremove(from, i);
+    return render();
+  }
+  if (p && p.c === App.me && UI.psel !== i) { UI.pre = null; UI.psel = i; Sfx.play('select'); }
+  else { UI.psel = null; UI.pre = null; }
+  render();
+}
+/* Called after every render. Plays the queued pre-move as soon as it becomes our turn. */
+function runPremove() {
+  const S = App.S; if (!UI.pre || !S) return;
+  if (S.phase !== 'play' || S.result || App.mode === 'local') { UI.pre = null; return; }
+  if (!myTurn() || UI.targ || UI.premoveBusy) return;
+  const pm = UI.pre; UI.pre = null; UI.premoveBusy = true;
+  setTimeout(() => {
+    UI.premoveBusy = false;
+    const S2 = App.S, p = S2 && S2.board[pm.from];
+    if (!S2 || !myTurn()) return;
+    const ms = p && p.id === pm.id ? myLegal().filter(m => m.from === pm.from && m.to === pm.to) : [];
+    if (!ms.length) { Sfx.play('tick'); toast('Pre-move cancelled: it isn’t legal in this position.'); render(); return; }
+    const m = ms.find(x => x.castle) || ms[0];
+    act({ kind: 'move', from: m.from, to: m.to, castle: !!m.castle, promo: pm.promo || 'q' });
+  }, 40);
+}
+H.cancelPremove = () => { cancelPremove(); render(); };
+H.premoveToggle = b => { UI.premoveOn = b.checked; try { localStorage.setItem('ac_premove', b.checked ? 'on' : 'off'); } catch (e) {} if (!b.checked) cancelPremove(); render(); };
+
+/* ---------- Board interaction ---------- */
+H.sq = btn => {
+  const i = +btn.dataset.sq, S = App.S;
+  if (UI.targ) {
+    const st = targStage();
+    if (st.stage === 'sq' && st.squares.has(i)) { UI.targ.sq = i; return advanceTarg(); }
+    if (st.stage === 'to') {
+      if (st.squares.has(i)) { UI.targ.to = i; return advanceTarg(); }
+      const T = UI.targ; if (T.acts.some(x => x.sq === i && (T.pick == null || x.pick === T.pick))) { T.sq = i; return render(); }
+    }
+    return;
+  }
+  if (!myTurn()) { if (canPremove()) premoveClick(i); return; }
+  const legal = myLegal();
+  if (UI.sel != null) {
+    const cand = legal.filter(m => m.from === UI.sel && m.to === i);
+    if (cand.length) {
+      const m = cand.find(x => x.castle) || cand[0];
+      UI.sel = null;
+      if (m.promo) {
+        const only = E.profiles(S)[acting()].promoOnly;
+        if (only) return act({ kind: 'move', from: m.from, to: m.to, promo: only });
+        UI.promo = { from: m.from, to: m.to, c: acting() }; UI.modal = 'promo'; return render();
+      }
+      return act({ kind: 'move', from: m.from, to: m.to, castle: !!m.castle });
+    }
+  }
+  const p = S.board[i];
+  UI.sel = p && p.c === acting() && legal.some(m => m.from === i) && UI.sel !== i ? i : null;
+  if (UI.sel != null) Sfx.play('select');
+  renderBoard();
+};
+H.use = btn => {
+  const ai = +btn.dataset.ai;
+  if (UI.targ && UI.targ.ai === ai) { UI.targ = null; return render(); }
+  const acts = abilActs(ai); if (!acts.length) return;
+  UI.sel = null;
+  UI.targ = { ai, acts, pick: null, sq: null, to: null };
+  advanceTarg();
+};
+H.tpick = b => { UI.targ.pick = b.dataset.pick; advanceTarg(); };
+H.tcancel = () => { UI.targ = null; render(); };
+H.promo = b => { const P = UI.promo; UI.promo = null; UI.modal = null; if (P.pre) { if (canPremove()) queuePremove(P.from, P.to, b.dataset.p); return render(); } act({ kind: 'move', from: P.from, to: P.to, promo: b.dataset.p }); };
+H.resign = () => { if (Date.now() - UI.resignArm < 3000) { UI.resignArm = 0; act({ kind: 'resign' }); } else { UI.resignArm = Date.now(); renderControls(); setTimeout(() => { if (UI.screen === 'game') renderControls(); }, 3100); } };
+H.draw = () => act({ kind: 'draw' });
+H.declineDraw = () => act({ kind: 'declineDraw' });
+H.rematch = () => { UI.modal = null; act({ kind: 'rematch' }); };
+H.flip = () => { UI.flip = !UI.flip; render(); };
+H.autoflip = b => { UI.autoFlip = b.checked; render(); };
+H.tab = b => { UI.tab = b.dataset.tab; renderTabs(); };
+H.chat = () => {
+  const inp = $('#chatIn'), t = inp.value.trim(); if (!t) return;
+  const from = App.name || (App.mode === 'host' ? 'Host' : 'Guest');
+  send({ type: 'chat', from, text: t }); App.chat.push({ from, text: t }); inp.value = ''; renderTabs();
+};
+H.sound = () => { Sfx.unlock(); Sfx.setMuted(!Sfx.muted); if (!Sfx.muted && Sfx.vol === 0) Sfx.setVol(0.6); renderSound(); Sfx.play('move'); };
+H.codex = () => { if (App.S) return; UI.modal = 'codex'; renderModal(); };
+H.codexTier = b => { UI.codexTier = b.dataset.tier; renderModal(); };
+H.codexTag = b => { UI.codexTag = b.dataset.tag; renderModal(); };
+H.leave = () => { closePeer(); App.mode = null; App.S = null; App.chat = []; UI.modal = null; render(); };
+H.closeModal = () => { UI.modal = null; if (App.S && App.S.phase === 'over') UI.overShown = overKey(); renderModal(); };
+
+/* ---------- Modals ---------- */
+function overKey() { const S = App.S; return S ? S.hostColor + S.tier + S.log.length + (S.result && S.result.reason) : ''; }
+function renderModal() {
+  const root = $('#modal'), S = App.S;
+  if (S && UI.modal === 'codex') UI.modal = null;
+  Tip.hide();
+  if (!UI.modal && S && S.phase === 'over' && UI.screen === 'game' && UI.overShown !== overKey()) UI.modal = 'over';
+  if (!UI.modal) { root.innerHTML = ''; return; }
+  let h = '';
+  if (UI.modal === 'promo' && UI.promo) {
+    h = `<div class="modal" role="dialog" aria-label="Choose promotion"><h2>Promote your pawn</h2><div class="promo-opts">${['q', 'r', 'b', 'n'].map(t => `<button data-act="promo" data-p="${t}" aria-label="${PN[t]}">${glyph(t, UI.promo.c)}</button>`).join('')}</div></div>`;
+  } else if (UI.modal === 'over' && S && S.result) {
+    const win = S.result.winner;
+    const head = !win ? 'Draw' : App.mode === 'local' ? `${CN[win]} wins` : (win === App.me ? 'You win' : 'You lose');
+    h = `<div class="modal" role="dialog" aria-label="Game over"><h2>${head}</h2><p>${esc(reasonText(S.result))}</p>
+      <div class="row"><button class="btn" data-act="closeModal">Review the board</button>${App.mode === 'local' || App.connected ? '<button class="btn primary" data-act="rematch">Rematch</button>' : ''}</div></div>`;
+  } else if (UI.modal === 'codex' && !S) {
+    const TAGS = ['All', 'Passive', 'Active', 'Drawback', 'Quest', 'Secret', 'Gamerule', 'Wildcard', 'Clock'];
+    const inTier = AUGS.filter(d => d.tier === UI.codexTier && !d.reward);
+    const list = inTier.filter(d => UI.codexTag === 'All' || d.tags.includes(UI.codexTag));
+    const rewards = AUGS.filter(d => d.reward && d.tier === UI.codexTier);
+    h = `<div class="modal wide" role="dialog" aria-label="All augments">
+      <div class="row" style="justify-content:space-between;align-items:center"><h2>All augments</h2><button class="btn" data-act="closeModal">Close</button></div>
+      <p>Every augment that can be offered in a draft. This list closes once a game starts.</p>
+      <div class="legend">${['self', 'opp', 'both'].map(sc => scopeChip({ scope: sc, tags: [] }, true)).join('')}<span class="fine">Hover or tap a badge to see exactly who an augment applies to.</span></div>
+      <div class="codex-tabs" role="tablist">${E.TIERS.map(t => `<button class="btn ${t === UI.codexTier ? 'primary' : ''}" role="tab" aria-selected="${t === UI.codexTier}" data-act="codexTier" data-tier="${t}">${TIER_NAME[t]} (${AUGS.filter(d => d.tier === t && !d.reward).length})</button>`).join('')}</div>
+      <div class="codex-tags">${TAGS.map(t => `<button class="chipbtn ${t === UI.codexTag ? 'on' : ''}" aria-pressed="${t === UI.codexTag}" data-act="codexTag" data-tag="${t}">${t}${t === 'All' ? '' : ` ${inTier.filter(d => d.tags.includes(t)).length}`}</button>`).join('')}</div>
+      <div class="codex-grid">${list.length ? list.map(d => foilCard(d)).join('') : '<p class="fine">None in this tier.</p>'}</div>
+      ${rewards.length && UI.codexTag === 'All' ? `<h3 class="codex-sub">Quest rewards in this tier</h3><div class="codex-grid">${rewards.map(d => foilCard(d)).join('')}</div>` : ''}</div>`;
+  } else { UI.modal = null; root.innerHTML = ''; return; }
+  root.innerHTML = `<div class="modal-bg" data-act="bg">${h}</div>`;
+}
+H.bg = (el, e) => { if (e.target === el && UI.modal !== 'promo') H.closeModal(); };
+
+/* ===================== Wiring ===================== */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'); if (!t) return;
+  const k = t.dataset.act; if (k === 'autoflip' || k === 'premoveToggle') return; if (H[k]) H[k](t, e);
+});
+document.addEventListener('change', e => {
+  const t = e.target.closest('[data-act="autoflip"]'); if (t) H.autoflip(t);
+  const q = e.target.closest('[data-act="premoveToggle"]'); if (q) H.premoveToggle(q);
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (UI.targ) { UI.targ = null; render(); } else if (UI.pre || UI.psel != null) { cancelPremove(); render(); } else if (UI.sel != null) { UI.sel = null; render(); } else if (UI.modal && UI.modal !== 'promo') H.closeModal();
+});
+window.addEventListener('beforeunload', e => { if (App.S && App.S.phase !== 'over' && App.mode !== 'local') { e.preventDefault(); e.returnValue = ''; } });
+setInterval(() => {
+  const S = App.S; if (!S) return;
+  if (isHost() && E.tickClock(S)) { S.v++; afterHost(); return; }
+  updateClocks();
+}, 200);
+if (typeof RTCPeerConnection === 'undefined') toast('This browser doesn’t support WebRTC, so only practice mode will work.');
+document.addEventListener('pointerdown', () => Sfx.unlock(), true);
+document.addEventListener('keydown', () => Sfx.unlock(), true);
+$('#sndVol').addEventListener('input', e => { Sfx.setVol(e.target.value / 100); if (Sfx.muted && Sfx.vol > 0) Sfx.setMuted(false); renderSound(); });
+$('#sndVol').addEventListener('change', () => Sfx.play('move'));
+renderSound();
+render();
+})();
+
+</script>
+</body>
+</html>
